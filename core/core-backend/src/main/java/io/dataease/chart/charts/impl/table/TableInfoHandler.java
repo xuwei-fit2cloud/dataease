@@ -44,7 +44,7 @@ public class TableInfoHandler extends DefaultChartHandler {
         Map<String, Object> mapSize = (Map<String, Object>) mapAttr.get("basicStyle");
         var tablePageMode = (String) mapSize.get("tablePageMode");
         formatResult.getContext().put("tablePageMode", tablePageMode);
-        if (StringUtils.equalsIgnoreCase(tablePageMode, "page") && !view.getIsExcelExport()) {
+        if (StringUtils.equalsIgnoreCase(tablePageMode, "page")) {
             if (chartExtRequest.getGoPage() == null) {
                 chartExtRequest.setGoPage(1L);
             }
@@ -97,8 +97,7 @@ public class TableInfoHandler extends DefaultChartHandler {
                         fieldDTO = allField;
                     }
                 }
-                assert fieldDTO != null;
-                if (fieldDTO.isAgg()) {
+                if (fieldDTO != null && fieldDTO.isAgg()) {
                     sqlMeta.getXFields().get(i).setFieldName("'-'");
                 }
             }
@@ -154,7 +153,7 @@ public class TableInfoHandler extends DefaultChartHandler {
             if (CollectionUtils.isNotEmpty(assistFields)) {
                 var req = new DatasourceRequest();
                 req.setDsList(dsMap);
-                var assistSql = assistSQL(querySql, assistFields);
+                var assistSql = assistSQL(querySql, assistFields, dsMap);
                 req.setQuery(assistSql);
                 logger.debug("calcite assistSql sql: " + assistSql);
                 var assistData = (List<String[]>) provider.fetchResultField(req).get("data");

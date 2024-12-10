@@ -11,16 +11,20 @@ import io.dataease.engine.sql.SQLProvider;
 import io.dataease.engine.trans.Dimension2SQLObj;
 import io.dataease.engine.trans.Quota2SQLObj;
 import io.dataease.engine.utils.Utils;
+import io.dataease.exception.DEException;
 import io.dataease.extensions.datasource.api.PluginManageApi;
 import io.dataease.extensions.datasource.dto.DatasetTableFieldDTO;
 import io.dataease.extensions.datasource.dto.DatasourceRequest;
 import io.dataease.extensions.datasource.dto.DatasourceSchemaDTO;
 import io.dataease.extensions.datasource.model.SQLMeta;
 import io.dataease.extensions.datasource.provider.Provider;
+import io.dataease.extensions.datasource.vo.DatasourceConfiguration;
+import io.dataease.extensions.datasource.vo.XpackPluginsDatasourceVO;
 import io.dataease.extensions.view.dto.*;
 import io.dataease.extensions.view.plugin.AbstractChartPlugin;
 import io.dataease.extensions.view.util.ChartDataUtil;
 import io.dataease.extensions.view.util.FieldUtil;
+import io.dataease.license.utils.LicenseUtil;
 import io.dataease.utils.BeanUtils;
 import io.dataease.utils.JsonUtil;
 import jakarta.annotation.PostConstruct;
@@ -364,14 +368,45 @@ public class DefaultChartHandler extends AbstractChartPlugin {
         return conditionField;
     }
 
-    protected String assistSQL(String sql, List<ChartViewFieldDTO> assistFields) {
+    protected String assistSQL(String sql, List<ChartViewFieldDTO> assistFields, Map<Long, DatasourceSchemaDTO> dsMap) {
+        // get datasource prefix and suffix
+        String dsType = dsMap.entrySet().iterator().next().getValue().getType();
+        String prefix = "";
+        String suffix = "";
+        if (Arrays.stream(DatasourceConfiguration.DatasourceType.values()).map(DatasourceConfiguration.DatasourceType::getType).toList().contains(dsType)) {
+            DatasourceConfiguration.DatasourceType datasourceType = DatasourceConfiguration.DatasourceType.valueOf(dsType);
+            prefix = datasourceType.getPrefix();
+            suffix = datasourceType.getSuffix();
+        } else {
+            if (LicenseUtil.licenseValid()) {
+                List<XpackPluginsDatasourceVO> xpackPluginsDatasourceVOS = pluginManage.queryPluginDs();
+                List<XpackPluginsDatasourceVO> list = xpackPluginsDatasourceVOS.stream().filter(ele -> StringUtils.equals(ele.getType(), dsType)).toList();
+                if (ObjectUtils.isNotEmpty(list)) {
+                    XpackPluginsDatasourceVO first = list.getFirst();
+                    prefix = first.getPrefix();
+                    suffix = first.getSuffix();
+                } else {
+                    DEException.throwException("当前数据源插件不存在");
+                }
+            }
+        }
+
+        boolean crossDs = Utils.isCrossDs(dsMap);
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < assistFields.size(); i++) {
             ChartViewFieldDTO dto = assistFields.get(i);
-            if (i == (assistFields.size() - 1)) {
-                stringBuilder.append(dto.getSummary() + "(" + dto.getOriginName() + ")");
+            if (crossDs) {
+                if (i == (assistFields.size() - 1)) {
+                    stringBuilder.append(dto.getSummary() + "(" + dto.getOriginName() + ")");
+                } else {
+                    stringBuilder.append(dto.getSummary() + "(" + dto.getOriginName() + "),");
+                }
             } else {
-                stringBuilder.append(dto.getSummary() + "(" + dto.getOriginName() + "),");
+                if (i == (assistFields.size() - 1)) {
+                    stringBuilder.append(dto.getSummary() + "(" + prefix + dto.getOriginName() + suffix + ")");
+                } else {
+                    stringBuilder.append(dto.getSummary() + "(" + prefix + dto.getOriginName() + suffix + "),");
+                }
             }
         }
         return "SELECT " + stringBuilder + " FROM (" + sql + ") tmp";

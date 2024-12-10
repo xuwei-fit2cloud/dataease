@@ -64,6 +64,15 @@ public class XpackShareManage {
         return xpackShareMapper.selectOne(queryWrapper);
     }
 
+    public String queryPwd(Long resourceId, Long userId) {
+        QueryWrapper<XpackShare> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("creator", userId);
+        queryWrapper.eq("resource_id", resourceId);
+        XpackShare xpackShare = xpackShareMapper.selectOne(queryWrapper);
+        if (ObjectUtils.isEmpty(xpackShare)) return null;
+        return xpackShare.getPwd();
+    }
+
     @Transactional
     public void switcher(Long resourceId) {
         XpackShare originData = queryByResource(resourceId);
@@ -157,6 +166,10 @@ public class XpackShareManage {
         if (StringUtils.isNotBlank(request.getKeyword())) {
             queryWrapper.like("v.name", request.getKeyword());
         }
+        String info = CommunityUtils.getInfo();
+        if (StringUtils.isNotBlank(info)) {
+            queryWrapper.notExists(String.format(info, "s.resource_id"));
+        }
         queryWrapper.orderBy(true, request.isAsc(), "s.time");
         Page<XpackSharePO> page = new Page<>(goPage, pageSize);
         return xpackShareExtMapper.query(page, queryWrapper);
@@ -170,10 +183,15 @@ public class XpackShareManage {
         };
     }
 
-    @XpackInteract(value = "perFilterShareManage", recursion = true)
+    @XpackInteract(value = "perFilterShareManage", recursion = true, invalid = true)
     public IPage<XpackShareGridVO> query(int pageNum, int pageSize, VisualizationWorkbranchQueryRequest request) {
         IPage<XpackSharePO> poiPage = proxy().querySharePage(pageNum, pageSize, request);
         List<XpackShareGridVO> vos = proxy().formatResult(poiPage.getRecords());
+        if (!org.springframework.util.CollectionUtils.isEmpty(vos)) {
+            vos.stream().forEach(item -> {
+                item.setCreator(StringUtils.equals(item.getCreator(), "1") ? "管理员" : item.getCreator());
+            });
+        }
         IPage<XpackShareGridVO> ipage = new Page<>();
         ipage.setSize(poiPage.getSize());
         ipage.setCurrent(poiPage.getCurrent());
@@ -199,7 +217,7 @@ public class XpackShareManage {
         if (ObjectUtils.isEmpty(sharedBase) || !sharedBase.isPeRequire()) return true;
         Long exp = share.getExp();
         String pwd = share.getPwd();
-        return StringUtils.isNotBlank(pwd) && ObjectUtils.isNotEmpty(exp);
+        return StringUtils.isNotBlank(pwd) && ObjectUtils.isNotEmpty(exp) && exp > 0L;
     }
 
     public XpackShareProxyVO proxyInfo(XpackShareProxyRequest request) {

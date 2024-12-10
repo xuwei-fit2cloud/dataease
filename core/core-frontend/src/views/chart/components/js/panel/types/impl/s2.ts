@@ -64,8 +64,8 @@ export abstract class S2ChartView<P extends SpreadSheet> extends AntVAbstractCha
     return getConditions(chart)
   }
 
-  protected configMergeCells(chart: Chart, option: S2Options) {
-    configMergeCells(chart, option)
+  protected configMergeCells(chart: Chart, option: S2Options, dataConfig: S2DataConfig) {
+    configMergeCells(chart, option, dataConfig)
   }
 
   protected showTooltip(s2Instance: P, event, metaConfig: Meta[]) {

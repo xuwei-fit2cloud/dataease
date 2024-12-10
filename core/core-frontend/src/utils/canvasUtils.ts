@@ -11,12 +11,14 @@ import eventBus from '@/utils/eventBus'
 import { dvMainStoreWithOut } from '@/store/modules/data-visualization/dvMain'
 import {
   appCanvasNameCheck,
+  checkCanvasChange,
   decompression,
   dvNameCheck,
   findById,
   findCopyResource,
   saveCanvas,
-  updateCanvas
+  updateCanvas,
+  updateCheckVersion
 } from '@/api/visualization/dataVisualization'
 import { storeToRefs } from 'pinia'
 import { getPanelAllLinkageInfo } from '@/api/visualization/linkage'
@@ -27,19 +29,18 @@ import {
 } from '@/views/chart/components/editor/util/chart'
 import { snapshotStoreWithOut } from '@/store/modules/data-visualization/snapshot'
 import { deepCopy } from '@/utils/utils'
-import { ElMessage } from 'element-plus-secondary'
+import { ElMessage, ElMessageBox } from 'element-plus-secondary'
+import { guid } from '@/views/visualized/data/dataset/form/util'
 const dvMainStore = dvMainStoreWithOut()
-const {
-  inMobile,
-  curBatchOptComponents,
-  dvInfo,
-  canvasStyleData,
-  componentData,
-  canvasViewInfo,
-  appData
-} = storeToRefs(dvMainStore)
+const { inMobile, dvInfo, canvasStyleData, componentData, canvasViewInfo, appData } =
+  storeToRefs(dvMainStore)
 const snapshotStore = snapshotStoreWithOut()
-
+import { useI18n } from '@/hooks/web/useI18n'
+import { useAppearanceStoreWithOut } from '@/store/modules/appearance'
+import { useCache } from '@/hooks/web/useCache'
+const { t } = useI18n()
+const appearanceStore = useAppearanceStoreWithOut()
+const { wsCache } = useCache()
 export function chartTransStr2Object(targetIn, copy) {
   const target = copy === 'Y' ? cloneDeep(targetIn) : targetIn
   return target
@@ -147,9 +148,13 @@ export function historyItemAdaptor(
       }
     })
   }
-  if (componentItem.component === 'Group') {
-    componentItem.expand = componentItem.expand || false
+
+  if (componentItem.component === 'DeTabs') {
+    componentItem.style['showTabTitle'] = componentItem.style['showTabTitle'] || true
   }
+
+  componentItem['expand'] = componentItem['expand'] || false
+  componentItem['resizeInnerKeep'] = componentItem['resizeInnerKeep'] || false
 
   if (componentItem.component === 'Picture') {
     componentItem.style['adaptation'] = componentItem.style['adaptation'] || 'adaptation'
@@ -221,7 +226,16 @@ export function historyAdaptor(
   attachInfo,
   canvasVersion
 ) {
+  const curVersion = wsCache.get('x-de-execute-version')
+  if (canvasInfo?.checkVersion === curVersion) {
+    return
+  }
   //历史字段适配
+  canvasStyleResult.component['seniorStyleSetting'] =
+    canvasStyleResult.component['seniorStyleSetting'] || deepCopy(SENIOR_STYLE_SETTING_LIGHT)
+  canvasStyleResult['fontFamily'] = canvasStyleResult['fontFamily'] || 'PingFang'
+  canvasStyleResult.dashboard['showGrid'] = canvasStyleResult.dashboard['showGrid'] || false
+  canvasStyleResult.dashboard['matrixBase'] = canvasStyleResult.dashboard['matrixBase'] || 4
   canvasStyleResult.component['seniorStyleSetting'] =
     canvasStyleResult.component['seniorStyleSetting'] || deepCopy(SENIOR_STYLE_SETTING_LIGHT)
   canvasStyleResult['suspensionButtonAvailable'] =
@@ -325,6 +339,8 @@ export function initCanvasDataPrepare(dvId, busiFlag, callBack) {
       updateTime: canvasInfo.updateTime,
       watermarkInfo: watermarkInfo,
       weight: canvasInfo.weight,
+      ext: canvasInfo.ext,
+      contentId: canvasInfo.contentId,
       mobileLayout: canvasInfo.mobileLayout || false
     }
     const canvasVersion = canvasInfo.version
@@ -333,13 +349,15 @@ export function initCanvasDataPrepare(dvId, busiFlag, callBack) {
     const canvasStyleResult = JSON.parse(canvasInfo.canvasStyleData)
     const canvasViewInfoPreview = canvasInfo.canvasViewInfo
     historyAdaptor(canvasStyleResult, canvasDataResult, canvasInfo, attachInfo, canvasVersion)
-    //历史字段适配
-    canvasStyleResult.component['seniorStyleSetting'] =
-      canvasStyleResult.component['seniorStyleSetting'] || deepCopy(SENIOR_STYLE_SETTING_LIGHT)
     const curPreviewGap =
       dvInfo.type === 'dashboard' && canvasStyleResult['dashboard'].gap === 'yes'
         ? canvasStyleResult['dashboard'].gapSize
         : 0
+    appearanceStore.setCurrentFont(canvasStyleResult.fontFamily)
+    document.documentElement.style.setProperty(
+      '--de-canvas_custom_font',
+      `${canvasStyleResult.fontFamily}`
+    )
     callBack({ canvasDataResult, canvasStyleResult, dvInfo, canvasViewInfoPreview, curPreviewGap })
   })
 }
@@ -387,26 +405,11 @@ export async function backCanvasData(dvId, mobileViewInfo, busiFlag, callBack) {
           if (ele.component === 'VQuery') {
             ele.mPropValue = mPropValue
           }
-          if (ele.component === 'DeTabs') {
-            ele.propValue.forEach(tabItem => {
-              tabItem.componentData.forEach(tabComponent => {
-                tabComponent.mx = tabComponent.mx
-                tabComponent.my = tabComponent.my
-                tabComponent.mSizeX = tabComponent.mSizeX
-                tabComponent.mSizeY = tabComponent.mSizeY
-                tabComponent.mEvents = tEvents
-                tabComponent.mCommonBackground = tCommonBackground
-                if (tabComponent.component === 'VQuery') {
-                  tabComponent.mPropValue = tPropValue
-                }
-              })
-            })
-          }
         }
       })
-      Object.keys(mobileViewInfo).forEach(key => {
-        if (canvasViewInfo.value[key] && mobileViewInfo[key]) {
-          const { customAttrMobile, customStyleMobile } = mobileViewInfo[key]
+      Object.keys(canvasViewInfoPreview).forEach(key => {
+        if (canvasViewInfo.value[key] && canvasViewInfoPreview[key]) {
+          const { customAttrMobile, customStyleMobile } = canvasViewInfoPreview[key]
           // 此处作为还原移动设计使用
           canvasViewInfo.value[key]['customStyleMobile'] = customStyleMobile
           canvasViewInfo.value[key]['customAttrMobile'] = customAttrMobile
@@ -506,8 +509,32 @@ export function initCanvasDataMobile(dvId, busiFlag, callBack) {
   )
 }
 
-export function checkIsBatchOptView(viewId) {
-  return curBatchOptComponents.value.includes(viewId)
+export function checkCanvasChangePre(callBack) {
+  // do pre
+  const isUpdate = dvInfo.value.id && dvInfo.value.optType !== 'copy'
+  if (isUpdate) {
+    const params = { ...dvInfo.value, watermarkInfo: null }
+    const tips =
+      (dvInfo.value.type === 'dashboard'
+        ? t('work_branch.dashboard')
+        : t('work_branch.big_data_screen')) + '已被他人更新，是否覆盖保存？'
+    checkCanvasChange(params).then(rsp => {
+      if (rsp && rsp.data === 'Repeat') {
+        ElMessageBox.confirm(tips, {
+          confirmButtonType: 'danger',
+          type: 'warning',
+          autofocus: false,
+          showClose: false
+        }).then(() => {
+          callBack()
+        })
+      } else {
+        callBack()
+      }
+    })
+  } else {
+    callBack()
+  }
 }
 
 export async function canvasSave(callBack) {
@@ -528,12 +555,15 @@ export async function canvasSave(callBack) {
       })
     }
   })
+  const newContentId = guid()
   const canvasInfo = {
     canvasStyleData: JSON.stringify(canvasStyleData.value),
     componentData: JSON.stringify(componentDataToSave),
     canvasViewInfo: canvasViewInfo.value,
     appData: appData.value,
     ...dvInfo.value,
+    checkVersion: wsCache.get('x-de-execute-version'),
+    contentId: newContentId,
     watermarkInfo: null
   }
 
@@ -550,7 +580,6 @@ export async function canvasSave(callBack) {
     ElMessage.error('数据集分组名称已存在')
     return
   }
-
   const method = dvInfo.value.id && dvInfo.value.optType !== 'copy' ? updateCanvas : saveCanvas
   if (method === updateCanvas) {
     await dvNameCheck({
@@ -562,7 +591,7 @@ export async function canvasSave(callBack) {
     })
   }
   method(canvasInfo).then(res => {
-    dvMainStore.updateDvInfoId(res.data)
+    dvMainStore.updateDvInfoId(res.data, newContentId)
     snapshotStore.resetStyleChangeTimes()
     callBack(res)
   })

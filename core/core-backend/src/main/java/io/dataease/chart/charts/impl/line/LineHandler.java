@@ -43,7 +43,8 @@ public class LineHandler extends YoyChartHandler {
         var xAxis = formatResult.getAxisMap().get(ChartAxis.xAxis);
         var xAxisExt = formatResult.getAxisMap().get(ChartAxis.xAxisExt);
         var yAxis = formatResult.getAxisMap().get(ChartAxis.yAxis);
-        var xAxisBase = xAxis.subList(0, xAxis.size() - xAxisExt.size());
+        var drillAxis = xAxis.stream().filter(axis -> FieldSource.DRILL == axis.getSource()).toList();
+        var xAxisBase = xAxis.subList(0, xAxis.size() - xAxisExt.size() - drillAxis.size());
         return ChartDataBuild.transBaseGroupDataAntV(xAxisBase, xAxis, xAxisExt, yAxis, view, data, isDrill);
     }
 
@@ -64,7 +65,7 @@ public class LineHandler extends YoyChartHandler {
             if (CollectionUtils.isNotEmpty(assistFields)) {
                 var req = new DatasourceRequest();
                 req.setDsList(dsMap);
-                var assistSql = assistSQL(originSql, assistFields);
+                var assistSql = assistSQL(originSql, assistFields, dsMap);
                 req.setQuery(assistSql);
                 logger.debug("calcite assistSql sql: " + assistSql);
                 var assistData = (List<String[]>) provider.fetchResultField(req).get("data");

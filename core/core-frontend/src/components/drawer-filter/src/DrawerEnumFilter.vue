@@ -36,7 +36,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="filter">
+  <div class="draw-filter_enum">
     <span>{{ title }}</span>
     <div class="filter-item">
       <span
@@ -51,7 +51,7 @@ defineExpose({
   </div>
 </template>
 <style lang="less" scope>
-.filter {
+.draw-filter_enum {
   display: flex;
   align-items: center;
   min-height: 46px;

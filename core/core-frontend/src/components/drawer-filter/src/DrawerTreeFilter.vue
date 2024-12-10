@@ -75,7 +75,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="filter">
+  <div class="draw-filter_tree">
     <span>{{ title }}</span>
     <div class="filter-item">
       <el-tree-select
@@ -97,7 +97,7 @@ defineExpose({
   </div>
 </template>
 <style lang="less" scope>
-.filter {
+.draw-filter_tree {
   display: flex;
   align-items: center;
   min-height: 46px;

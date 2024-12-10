@@ -17,6 +17,7 @@ interface SelectConfig {
   selectValue: any
   defaultMapValue: any
   defaultValue: any
+  queryConditionWidth: number
   resultMode: number
   checkedFieldsMap: object
   displayType: string
@@ -41,6 +42,7 @@ const props = defineProps({
       return {
         selectValue: '',
         defaultValue: '',
+        queryConditionWidth: 0,
         displayType: '',
         resultMode: 0,
         defaultValueCheck: false,
@@ -58,7 +60,7 @@ const props = defineProps({
 
 const placeholder: Ref = inject('placeholder')
 const placeholderText = computed(() => {
-  if (placeholder.value.placeholderShow) {
+  if (placeholder?.value?.placeholderShow) {
     return ['', undefined].includes(props.config.placeholder) ? ' ' : props.config.placeholder
   }
   return ' '
@@ -227,8 +229,17 @@ watch(
 )
 const fakeValue = ''
 const treeValue = ref()
+const getCustomWidth = () => {
+  if (placeholder?.value?.placeholderShow) {
+    if (props.config.queryConditionWidth === undefined) {
+      return queryConditionWidth()
+    }
+    return props.config.queryConditionWidth
+  }
+  return 227
+}
 const selectStyle = computed(() => {
-  return props.isConfig ? {} : { width: queryConditionWidth() + 'px' }
+  return props.isConfig ? {} : { width: getCustomWidth() + 'px' }
 })
 </script>
 

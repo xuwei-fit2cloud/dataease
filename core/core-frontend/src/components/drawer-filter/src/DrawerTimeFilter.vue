@@ -62,7 +62,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="filter">
+  <div class="draw-filter_time">
     <span>{{ title }}</span>
     <div class="filter-item">
       <el-date-picker
@@ -82,7 +82,7 @@ defineExpose({
   </div>
 </template>
 <style lang="less" scope>
-.filter {
+.draw-filter_time {
   display: flex;
   align-items: center;
   min-height: 32px;
@@ -95,7 +95,6 @@ defineExpose({
     line-height: 24px;
     white-space: nowrap;
     width: 116px;
-    // margin-top: 5px;
   }
 
   .filter-item {

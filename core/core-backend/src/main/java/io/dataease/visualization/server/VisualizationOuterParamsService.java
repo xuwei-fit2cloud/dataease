@@ -2,13 +2,13 @@ package io.dataease.visualization.server;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.ibm.icu.impl.coll.CollationLoader;
 import io.dataease.api.dataset.vo.CoreDatasetGroupVO;
 import io.dataease.api.dataset.vo.CoreDatasetTableFieldVO;
 import io.dataease.api.visualization.VisualizationOuterParamsApi;
 import io.dataease.api.visualization.dto.VisualizationOuterParamsDTO;
 import io.dataease.api.visualization.dto.VisualizationOuterParamsInfoDTO;
 import io.dataease.api.visualization.response.VisualizationOuterParamsBaseResponse;
+import io.dataease.auth.DeLinkPermit;
 import io.dataease.dataset.dao.auto.entity.CoreDatasetTable;
 import io.dataease.dataset.dao.auto.mapper.CoreDatasetTableMapper;
 import io.dataease.engine.constant.DeTypeConstants;
@@ -69,27 +69,41 @@ public class VisualizationOuterParamsService implements VisualizationOuterParams
     public void updateOuterParamsSet(VisualizationOuterParamsDTO outerParamsDTO) {
         String visualizationId = outerParamsDTO.getVisualizationId();
         Assert.notNull(visualizationId, "visualizationId cannot be null");
+        Map<String,String> paramsInfoNameIdMap = new HashMap<>();
+        List<VisualizationOuterParamsInfo> paramsInfoNameIdList = extOuterParamsMapper.getVisualizationOuterParamsInfoBase(visualizationId);
+        if(!CollectionUtils.isEmpty(paramsInfoNameIdList)){
+            paramsInfoNameIdMap = paramsInfoNameIdList.stream()
+                    .collect(Collectors.toMap(VisualizationOuterParamsInfo::getParamName, VisualizationOuterParamsInfo::getParamsInfoId));
+        }
         //清理原有数据
         extOuterParamsMapper.deleteOuterParamsTargetWithVisualizationId(visualizationId);
         extOuterParamsMapper.deleteOuterParamsInfoWithVisualizationId(visualizationId);
         extOuterParamsMapper.deleteOuterParamsWithVisualizationId(visualizationId);
+        if(CollectionUtils.isEmpty(outerParamsDTO.getOuterParamsInfoArray())){
+            return;
+        }
         // 插入新的数据
         String paramsId = UUID.randomUUID().toString();
         outerParamsDTO.setParamsId(paramsId);
         VisualizationOuterParams newOuterParams = new VisualizationOuterParams();
         BeanUtils.copyBean(newOuterParams, outerParamsDTO);
         outerParamsMapper.insert(newOuterParams);
+        Map<String, String> finalParamsInfoNameIdMap = paramsInfoNameIdMap;
         Optional.ofNullable(outerParamsDTO.getOuterParamsInfoArray()).orElse(new ArrayList<>()).forEach(outerParamsInfo -> {
-            String paramsInfoId = UUID.randomUUID().toString();
+            String paramsInfoId = finalParamsInfoNameIdMap.get(outerParamsInfo.getParamName());
+            if(StringUtils.isEmpty(paramsInfoId)){
+                paramsInfoId = UUID.randomUUID().toString();
+            }
             outerParamsInfo.setParamsInfoId(paramsInfoId);
             outerParamsInfo.setParamsId(paramsId);
             VisualizationOuterParamsInfo newOuterParamsInfo = new VisualizationOuterParamsInfo();
             BeanUtils.copyBean(newOuterParamsInfo, outerParamsInfo);
             outerParamsInfoMapper.insert(newOuterParamsInfo);
+            String finalParamsInfoId = paramsInfoId;
             Optional.ofNullable(outerParamsInfo.getTargetViewInfoList()).orElse(new ArrayList<>()).forEach(targetViewInfo -> {
                 String targetViewInfoId = UUID.randomUUID().toString();
                 targetViewInfo.setTargetId(targetViewInfoId);
-                targetViewInfo.setParamsInfoId(paramsInfoId);
+                targetViewInfo.setParamsInfoId(finalParamsInfoId);
                 VisualizationOuterParamsTargetViewInfo newOuterParamsTargetViewInfo = new VisualizationOuterParamsTargetViewInfo();
                 BeanUtils.copyBean(newOuterParamsTargetViewInfo, targetViewInfo);
                 outerParamsTargetViewInfoMapper.insert(newOuterParamsTargetViewInfo);
@@ -98,6 +112,7 @@ public class VisualizationOuterParamsService implements VisualizationOuterParams
 
     }
 
+    @DeLinkPermit
     @Override
     public VisualizationOuterParamsBaseResponse getOuterParamsInfo(String visualizationId) {
         List<VisualizationOuterParamsInfoDTO> result = extOuterParamsMapper.getVisualizationOuterParamsInfo(visualizationId);

@@ -36,7 +36,7 @@ const props = defineProps({
   }
 })
 const dvMainStore = dvMainStoreWithOut()
-const { batchOptStatus } = storeToRefs(dvMainStore)
+const { batchOptStatus, mobileInPc } = storeToRefs(dvMainStore)
 const predefineColors = COLOR_PANEL
 const toolTip = computed(() => {
   return props.themes === 'dark' ? 'ndark' : 'dark'
@@ -45,7 +45,12 @@ const emit = defineEmits(['onTooltipChange', 'onExtTooltipChange'])
 const curSeriesFormatter = ref<DeepPartial<SeriesFormatter>>({})
 const quotaData = ref<Axis[]>(inject('quotaData'))
 const showSeriesTooltipFormatter = computed(() => {
-  return showProperty('seriesTooltipFormatter') && !batchOptStatus.value && props.chart.id
+  return (
+    showProperty('seriesTooltipFormatter') &&
+    !batchOptStatus.value &&
+    !mobileInPc.value &&
+    props.chart.id
+  )
 })
 
 // 切换图表类型直接重置为默认
@@ -203,6 +208,12 @@ const state = reactive({
 const fontSizeList = computed(() => {
   const arr = []
   for (let i = 10; i <= 40; i = i + 2) {
+    arr.push({
+      name: i + '',
+      value: i
+    })
+  }
+  for (let i = 50; i <= 200; i = i + 10) {
     arr.push({
       name: i + '',
       value: i
@@ -468,7 +479,7 @@ onMounted(() => {
         v-if="showProperty('fontSize')"
       >
         <template #label>&nbsp;</template>
-        <el-tooltip content="字号" :effect="toolTip" placement="top">
+        <el-tooltip :content="t('chart.font_size')" :effect="toolTip" placement="top">
           <el-select
             size="small"
             style="width: 108px"
@@ -488,7 +499,7 @@ onMounted(() => {
       </el-form-item>
     </el-space>
 
-    <div v-if="showProperty('showFields') && !batchOptStatus">
+    <div v-if="showProperty('showFields') && !batchOptStatus && !mobileInPc">
       <el-form-item :label="t('chart.tooltip')" class="form-item" :class="'form-item-' + themes">
         <el-select
           size="small"

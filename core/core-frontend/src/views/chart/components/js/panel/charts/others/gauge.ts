@@ -133,7 +133,9 @@ export class Gauge extends G2PlotChartView<GaugeOptions, G2Gauge> {
         max = misc.gaugeMax ? misc.gaugeMax : DEFAULT_MISC.gaugeMax
       } else {
         min = misc.gaugeMin || misc.gaugeMin === 0 ? misc.gaugeMin : DEFAULT_MISC.gaugeMin
-        max = misc.gaugeMax ? misc.gaugeMax : DEFAULT_MISC.gaugeMax
+        max = misc.gaugeMax
+          ? misc.gaugeMax
+          : chart.data?.series[chart.data?.series.length - 1]?.data[0]
       }
       startAngle = (misc.gaugeStartAngle * Math.PI) / 180
       endAngle = (misc.gaugeEndAngle * Math.PI) / 180
@@ -243,11 +245,12 @@ export class Gauge extends G2PlotChartView<GaugeOptions, G2Gauge> {
   ): GaugeOptions {
     const customAttr = parseJson(chart.customAttr)
     const data = chart.data.series[0].data[0]
+    let labelTitle: GaugeOptions['statistic']['title'] = false
     let labelContent: GaugeOptions['statistic']['content'] = false
     const label = customAttr.label
     const labelFormatter = label.labelFormatter ?? DEFAULT_LABEL.labelFormatter
-    if (label.show) {
-      labelContent = {
+    if (label.show && label.childrenShow) {
+      labelTitle = {
         style: {
           fontSize: `${label.fontSize}px`,
           color: label.color
@@ -261,13 +264,33 @@ export class Gauge extends G2PlotChartView<GaugeOptions, G2Gauge> {
           }
           return valueFormatter(value, labelFormatter)
         }
+      } as GaugeOptions['statistic']['title']
+    }
+    const { min, max } = context
+    if (label.show && label.proportionSeriesFormatter.show) {
+      const proportionFormatter = label.proportionSeriesFormatter
+      labelContent = {
+        offsetY: proportionFormatter.fontSize + label.fontSize,
+        style: {
+          fontSize: `${proportionFormatter.fontSize}px`,
+          color: proportionFormatter.color
+        },
+        formatter: function () {
+          const proportionValue = ((parseFloat(data) - min) / (max - min)) * 100
+          return (
+            t('chart.proportion') +
+            '： ' +
+            proportionValue.toFixed(proportionFormatter.formatterCfg.decimalCount) +
+            '%'
+          )
+        }
       } as GaugeOptions['statistic']['content']
     }
     const statistic = {
+      title: labelTitle,
       content: labelContent
     }
     const { gaugeAxisLine, gaugePercentLabel } = customAttr.basicStyle
-    const { min, max } = context
     const tmp = {
       axis: {
         label: {
@@ -276,7 +299,10 @@ export class Gauge extends G2PlotChartView<GaugeOptions, G2Gauge> {
               return ''
             }
             if (gaugePercentLabel === false) {
-              return v === '0' ? min : v === '1' ? max : min + (max - min) * v
+              const resultV = v === '0' ? min : v === '1' ? max : min + (max - min) * v
+              return labelFormatter.type === 'value'
+                ? valueFormatter(resultV, labelFormatter)
+                : resultV
             }
             return v === '0' ? v : v * 100 + '%'
           }

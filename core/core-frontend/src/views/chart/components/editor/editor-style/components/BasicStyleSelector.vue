@@ -65,6 +65,22 @@ const onAlphaChange = v => {
   changeBasicStyle('alpha')
 }
 
+const onColumnWidthRatioChange = v => {
+  const _v = parseInt(v)
+  if (_v >= 1 && _v <= 100) {
+    state.basicStyleForm.columnWidthRatio = _v
+  } else if (_v < 1) {
+    state.basicStyleForm.columnWidthRatio = 1
+  } else if (_v > 100) {
+    state.basicStyleForm.columnWidthRatio = 100
+  } else {
+    const basicStyle = cloneDeep(props.chart.customAttr.basicStyle)
+    const oldForm = defaultsDeep(basicStyle, cloneDeep(DEFAULT_BASIC_STYLE)) as ChartBasicStyle
+    state.basicStyleForm.columnWidthRatio = oldForm.columnWidthRatio
+  }
+  changeBasicStyle('columnWidthRatio')
+}
+
 const changeMisc = prop => {
   emit('onMiscChange', { data: state.miscForm, requestData: true }, prop)
 }
@@ -309,18 +325,28 @@ const customSymbolicMapSizeRange = computed(() => {
   return ['symbolic-map'].includes(props.chart.type) && extBubble?.length > 0
 })
 const mapCustomRangeValidate = prop => {
-  if (!state.basicStyleForm.mapSymbolSizeMin || state.basicStyleForm.mapSymbolSizeMin < 0) {
-    state.basicStyleForm.mapSymbolSizeMin = 0
-  }
-  if (!state.basicStyleForm.mapSymbolSizeMax || state.basicStyleForm.mapSymbolSizeMax < 1) {
-    state.basicStyleForm.mapSymbolSizeMax = 1
-  }
-  if (state.basicStyleForm.mapSymbolSizeMax < state.basicStyleForm.mapSymbolSizeMin) {
+  const { mapSymbolSizeMax = '0', mapSymbolSizeMin = '1' } = state.basicStyleForm
+  let max = parseInt(mapSymbolSizeMax)
+  let min = parseInt(mapSymbolSizeMin)
+  state.basicStyleForm.mapSymbolSizeMin = Math.max(min, 0)
+  state.basicStyleForm.mapSymbolSizeMax = Math.max(max, 1)
+  if (max < min) {
     ElMessage.warning('第二个区间值必须大于第一个区间值')
     return
   }
   changeBasicStyle(prop)
 }
+/**
+ * 表格是否合并单元格
+ */
+const mergeCell = computed(() => {
+  if (COLUMN_WIDTH_TYPE.includes(props.chart.type)) {
+    let { customAttr } = JSON.parse(JSON.stringify(props.chart))
+    const { tableCell } = customAttr
+    return tableCell.mergeCells
+  }
+  return false
+})
 onMounted(() => {
   init()
 })
@@ -707,6 +733,7 @@ onMounted(() => {
             v-model="state.basicStyleForm.areaBorderColor"
             :effect="themes"
             is-custom
+            show-alpha
             :trigger-width="108"
             class="color-picker-style"
             :predefine="predefineColors"
@@ -726,6 +753,7 @@ onMounted(() => {
             :persistent="false"
             v-model="state.basicStyleForm.areaBaseColor"
             is-custom
+            show-alpha
             :effect="themes"
             :trigger-width="108"
             class="color-picker-style"
@@ -1052,6 +1080,53 @@ onMounted(() => {
         @blur="changeBasicStyle('summaryLabel')"
       />
     </el-form-item>
+    <el-form-item v-if="showProperty('autoWrap')" class="form-item" :class="'form-item-' + themes">
+      <el-checkbox
+        size="small"
+        :effect="themes"
+        :disabled="mergeCell"
+        v-model="state.basicStyleForm.autoWrap"
+        @change="changeBasicStyle('autoWrap')"
+      >
+        <span class="data-area-label">
+          <span style="margin-right: 4px">{{ t('chart.table_auto_break_line') }}</span>
+          <el-tooltip class="item" effect="dark" placement="bottom" v-if="mergeCell">
+            <template #content>
+              <div>{{ t('chart.merge_cells_break_line_tip') }}</div>
+            </template>
+            <el-icon class="hint-icon" :class="{ 'hint-icon--dark': themes === 'dark' }">
+              <Icon name="icon_info_outlined"><icon_info_outlined class="svg-icon" /></Icon>
+            </el-icon>
+          </el-tooltip>
+          <el-tooltip class="item" effect="dark" placement="bottom" v-else>
+            <template #content>
+              <div>{{ t('chart.table_break_line_tip') }}</div>
+            </template>
+            <el-icon class="hint-icon" :class="{ 'hint-icon--dark': themes === 'dark' }">
+              <Icon name="icon_info_outlined"><icon_info_outlined class="svg-icon" /></Icon>
+            </el-icon>
+          </el-tooltip>
+        </span>
+      </el-checkbox>
+    </el-form-item>
+    <el-form-item
+      v-if="state.basicStyleForm.autoWrap"
+      :label="t('chart.table_break_line_max_lines')"
+      class="form-item form-item-slider"
+      :class="'form-item-' + themes"
+    >
+      <el-input-number
+        :effect="themes"
+        v-model="state.basicStyleForm.maxLines"
+        controls-position="right"
+        :show-input-controls="false"
+        :min="1"
+        :step="1"
+        :disabled="mergeCell"
+        :precision="0"
+        @change="changeBasicStyle('maxLines')"
+      />
+    </el-form-item>
     <el-form-item
       v-if="showProperty('showHoverStyle')"
       class="form-item"
@@ -1148,6 +1223,40 @@ onMounted(() => {
         @change="changeBasicStyle('barGap')"
       />
     </el-form-item>
+    <div class="alpha-setting" v-if="showProperty('columnWidthRatio')">
+      <label class="alpha-label" :class="{ dark: 'dark' === themes }">
+        {{ t('chart.column_width_ratio') }}
+      </label>
+      <el-row style="flex: 1" :gutter="8">
+        <el-col :span="13">
+          <el-form-item class="form-item alpha-slider" :class="'form-item-' + themes">
+            <el-slider
+              :effect="themes"
+              :min="1"
+              :max="100"
+              v-model="state.basicStyleForm.columnWidthRatio"
+              @change="changeBasicStyle('columnWidthRatio')"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="11" style="padding-top: 2px">
+          <el-form-item class="form-item" :class="'form-item-' + themes">
+            <el-input
+              type="number"
+              :effect="themes"
+              v-model="state.basicStyleForm.columnWidthRatio"
+              :min="1"
+              :max="100"
+              class="basic-input-number"
+              :controls="false"
+              @change="onColumnWidthRatioChange"
+            >
+              <template #suffix> % </template>
+            </el-input>
+          </el-form-item>
+        </el-col>
+      </el-row>
+    </div>
     <!--bar end-->
     <!--line area start-->
     <el-row :gutter="8">
@@ -1240,6 +1349,53 @@ onMounted(() => {
         <el-radio :effect="themes" label="polygon">{{ t('chart.polygon') }}</el-radio>
         <el-radio :effect="themes" label="circle">{{ t('chart.circle') }}</el-radio>
       </el-radio-group>
+    </el-form-item>
+    <el-form-item
+      class="form-item margin-bottom-8"
+      :class="'form-item-' + themes"
+      v-if="showProperty('radarShowPoint')"
+    >
+      <el-checkbox
+        size="small"
+        :effect="themes"
+        v-model="state.basicStyleForm.radarShowPoint"
+        @change="changeBasicStyle('radarShowPoint')"
+      >
+        {{ $t('chart.radar_point') }}
+      </el-checkbox>
+    </el-form-item>
+    <el-form-item
+      style="padding-left: 20px"
+      class="form-item margin-bottom-8"
+      :class="'form-item-' + themes"
+      :label="t('chart.radar_point_size')"
+      v-if="showProperty('radarPointSize')"
+    >
+      <el-input-number
+        style="width: 100%"
+        :effect="themes"
+        controls-position="right"
+        size="middle"
+        :min="0"
+        :max="30"
+        :disabled="!state.basicStyleForm.radarShowPoint"
+        v-model="state.basicStyleForm.radarPointSize"
+        @change="changeBasicStyle('radarPointSize')"
+      />
+    </el-form-item>
+    <el-form-item
+      class="form-item margin-bottom-8"
+      :class="'form-item-' + themes"
+      v-if="showProperty('radarAreaColor')"
+    >
+      <el-checkbox
+        size="small"
+        :effect="themes"
+        v-model="state.basicStyleForm.radarAreaColor"
+        @change="changeBasicStyle('radarAreaColor')"
+      >
+        {{ $t('chart.radar_area_color') }}
+      </el-checkbox>
     </el-form-item>
     <!--radar end-->
     <!--scatter start-->

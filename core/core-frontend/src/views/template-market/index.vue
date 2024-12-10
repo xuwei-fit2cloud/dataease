@@ -240,7 +240,7 @@ const state = reactive({
     },
     {
       value: 'market',
-      label: t('work_branch.template_market_official')
+      label: t('visualization.template_market')
     },
     {
       value: 'manage',
@@ -495,10 +495,11 @@ const apply = template => {
     )
     return
   }
+  const openType = wsCache.get('open-backend') === '1' ? '_self' : '_blank'
   if (state.pid) {
-    newWindow = window.open(baseUrl + `&pid=${state.pid}`, '_blank')
+    newWindow = window.open(baseUrl + `&pid=${state.pid}`, openType)
   } else {
-    newWindow = window.open(baseUrl, '_blank')
+    newWindow = window.open(baseUrl, openType)
   }
   initOpenHandler(newWindow)
 }

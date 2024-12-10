@@ -79,6 +79,11 @@ export class FlowMap extends L7ChartView<Scene, L7Config> {
 
   async drawChart(drawOption: L7DrawConfig<L7Config>) {
     const { chart, container } = drawOption
+    const containerDom = document.getElementById(container)
+    const rect = containerDom?.getBoundingClientRect()
+    if (rect?.height <= 0) {
+      return new L7Wrapper(drawOption.chartObj?.getScene(), [])
+    }
     const xAxis = deepCopy(chart.xAxis)
     const xAxisExt = deepCopy(chart.xAxisExt)
     const { basicStyle, misc } = deepCopy(parseJson(chart.customAttr))
@@ -263,7 +268,8 @@ export class FlowMap extends L7ChartView<Scene, L7Config> {
           textOffset: [0, 0], // 文本相对锚点的偏移量 [水平, 垂直]
           spacing: 2, // 字符间距
           padding: [1, 1], // 文本包围盒 padding [水平，垂直]，影响碰撞检测结果，避免相邻文本靠的太近
-          textAllowOverlap: true
+          textAllowOverlap: true,
+          fontFamily: chart.fontFamily ? chart.fontFamily : undefined
         })
       configList.push(startTextLayer)
     }
@@ -290,7 +296,8 @@ export class FlowMap extends L7ChartView<Scene, L7Config> {
           textOffset: [0, 0], // 文本相对锚点的偏移量 [水平, 垂直]
           spacing: 2, // 字符间距
           padding: [1, 1], // 文本包围盒 padding [水平，垂直]，影响碰撞检测结果，避免相邻文本靠的太近
-          textAllowOverlap: true
+          textAllowOverlap: true,
+          fontFamily: chart.fontFamily ? chart.fontFamily : undefined
         })
       configList.push(endTextLayer)
     }

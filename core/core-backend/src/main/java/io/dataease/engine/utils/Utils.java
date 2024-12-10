@@ -146,6 +146,8 @@ public class Utils {
                 return "%Y" + split + "%u";
             case "y_M_d":
                 return "yyyy" + split + "MM" + split + "dd";
+            case "M_d":
+                return "MM" + split + "dd";
             case "H_m_s":
                 return "HH:mm:ss";
             case "y_M_d_H_m":
@@ -422,6 +424,12 @@ public class Utils {
     public static String transLong2Str(Long ts) {
         Date date = new Date(ts);
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return simpleDateFormat.format(date);
+    }
+
+    public static String transLong2StrShort(Long ts) {
+        Date date = new Date(ts);
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
         return simpleDateFormat.format(date);
     }
 

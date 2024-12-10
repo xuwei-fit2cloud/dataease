@@ -3,7 +3,14 @@ import {
   G2PlotDrawOptions
 } from '@/views/chart/components/js/panel/types/impl/g2plot'
 import type { Bar, BarOptions } from '@antv/g2plot/esm/plots/bar'
-import { getPadding, setGradientColor } from '@/views/chart/components/js/panel/common/common_antv'
+import {
+  configAxisLabelLengthLimit,
+  configPlotTooltipEvent,
+  getPadding,
+  getTooltipContainer,
+  setGradientColor,
+  TOOLTIP_TPL
+} from '@/views/chart/components/js/panel/common/common_antv'
 import { cloneDeep } from 'lodash-es'
 import {
   flow,
@@ -19,7 +26,7 @@ import {
 } from '@/views/chart/components/js/panel/charts/bar/common'
 import type { Datum } from '@antv/g2plot/esm/types/common'
 import { useI18n } from '@/hooks/web/useI18n'
-import { DEFAULT_LABEL } from '@/views/chart/components/editor/util/chart'
+import { DEFAULT_BASIC_STYLE, DEFAULT_LABEL } from '@/views/chart/components/editor/util/chart'
 import { Group } from '@antv/g-canvas'
 
 const { t } = useI18n()
@@ -59,7 +66,8 @@ export class HorizontalBar extends G2PlotChartView<BarOptions, Bar> {
       'splitLine',
       'axisForm',
       'axisLabel',
-      'position'
+      'position',
+      'showLengthLimit'
     ]
   }
   axis: AxisType[] = [...BAR_AXIS_TYPE]
@@ -93,7 +101,8 @@ export class HorizontalBar extends G2PlotChartView<BarOptions, Bar> {
     const newChart = new Bar(container, options)
 
     newChart.on('interval:click', action)
-
+    configPlotTooltipEvent(chart, newChart)
+    configAxisLabelLengthLimit(chart, newChart)
     return newChart
   }
 
@@ -162,6 +171,20 @@ export class HorizontalBar extends G2PlotChartView<BarOptions, Bar> {
         barStyle
       }
     }
+
+    let barWidthRatio
+    const _v = basicStyle.columnWidthRatio ?? DEFAULT_BASIC_STYLE.columnWidthRatio
+    if (_v >= 1 && _v <= 100) {
+      barWidthRatio = _v / 100.0
+    } else if (_v < 1) {
+      barWidthRatio = 1 / 100.0
+    } else if (_v > 100) {
+      barWidthRatio = 1
+    }
+    if (barWidthRatio) {
+      options.barWidthRatio = barWidthRatio
+    }
+
     return options
   }
 
@@ -215,6 +238,7 @@ export class HorizontalBar extends G2PlotChartView<BarOptions, Bar> {
             textAlign: 'start',
             textBaseline: 'top',
             fontSize: labelCfg.fontSize,
+            fontFamily: chart.fontFamily,
             fill: labelCfg.color
           }
         })
@@ -313,7 +337,10 @@ export class HorizontalStackBar extends HorizontalBar {
         const res = valueFormatter(param.value, tooltipAttr.tooltipFormatter)
         obj.value = res ?? ''
         return obj
-      }
+      },
+      container: getTooltipContainer(`tooltip-${chart.id}`),
+      itemTpl: TOOLTIP_TPL,
+      enterable: true
     }
     return {
       ...options,
@@ -355,8 +382,20 @@ export class HorizontalStackBar extends HorizontalBar {
   }
 
   protected setupOptions(chart: Chart, options: BarOptions): BarOptions {
-    const tmp = super.setupOptions(chart, options)
-    return flow(this.configData)(chart, tmp, {}, this)
+    return flow(
+      this.configTheme,
+      this.configEmptyDataStrategy,
+      this.configData,
+      this.configColor,
+      this.configBasicStyle,
+      this.configLabel,
+      this.configTooltip,
+      this.configLegend,
+      this.configXAxis,
+      this.configYAxis,
+      this.configSlider,
+      this.configAnalyseHorizontal
+    )(chart, options, {}, this)
   }
 
   constructor(name = 'bar-stack-horizontal') {
@@ -423,7 +462,10 @@ export class HorizontalPercentageStackBar extends HorizontalStackBar {
         const obj = { name: param.category, value: param.value }
         obj.value = (Math.round(param.value * 10000) / 100).toFixed(l.reserveDecimalCount) + '%'
         return obj
-      }
+      },
+      container: getTooltipContainer(`tooltip-${chart.id}`),
+      itemTpl: TOOLTIP_TPL,
+      enterable: true
     }
     return {
       ...options,

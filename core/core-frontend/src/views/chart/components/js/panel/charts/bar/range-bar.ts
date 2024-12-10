@@ -3,7 +3,14 @@ import {
   G2PlotDrawOptions
 } from '@/views/chart/components/js/panel/types/impl/g2plot'
 import type { Bar, BarOptions } from '@antv/g2plot/esm/plots/bar'
-import { getPadding, setGradientColor } from '@/views/chart/components/js/panel/common/common_antv'
+import {
+  configAxisLabelLengthLimit,
+  configPlotTooltipEvent,
+  getPadding,
+  getTooltipContainer,
+  setGradientColor,
+  TOOLTIP_TPL
+} from '@/views/chart/components/js/panel/common/common_antv'
 import { cloneDeep, find } from 'lodash-es'
 import { flow, hexColorToRGBA, parseJson } from '@/views/chart/components/js/util'
 import { valueFormatter } from '@/views/chart/components/js/formatter'
@@ -14,6 +21,7 @@ import {
 } from '@/views/chart/components/js/panel/charts/bar/common'
 import { Datum } from '@antv/g2plot/esm/types/common'
 import { useI18n } from '@/hooks/web/useI18n'
+import { DEFAULT_BASIC_STYLE } from '@/views/chart/components/editor/util/chart'
 
 const { t } = useI18n()
 const DEFAULT_DATA = []
@@ -59,7 +67,8 @@ export class RangeBar extends G2PlotChartView<BarOptions, Bar> {
       'splitLine',
       'axisForm',
       'axisLabel',
-      'position'
+      'position',
+      'showLengthLimit'
     ]
   }
   axis: AxisType[] = [...BAR_AXIS_TYPE, 'yAxisExt']
@@ -161,7 +170,8 @@ export class RangeBar extends G2PlotChartView<BarOptions, Bar> {
     const newChart = new BarClass(container, options)
 
     newChart.on('interval:click', action)
-
+    configPlotTooltipEvent(chart, newChart)
+    configAxisLabelLengthLimit(chart, newChart)
     return newChart
   }
 
@@ -232,7 +242,10 @@ export class RangeBar extends G2PlotChartView<BarOptions, Bar> {
                 }
               }
               return { value: res, values: param.values, name: param.field }
-            }
+            },
+            container: getTooltipContainer(`tooltip-${chart.id}`),
+            itemTpl: TOOLTIP_TPL,
+            enterable: true
           }
         } else {
           tooltip = false
@@ -310,6 +323,19 @@ export class RangeBar extends G2PlotChartView<BarOptions, Bar> {
         barStyle
       }
     }
+    let barWidthRatio
+    const _v = basicStyle.columnWidthRatio ?? DEFAULT_BASIC_STYLE.columnWidthRatio
+    if (_v >= 1 && _v <= 100) {
+      barWidthRatio = _v / 100.0
+    } else if (_v < 1) {
+      barWidthRatio = 1 / 100.0
+    } else if (_v > 100) {
+      barWidthRatio = 1
+    }
+    if (barWidthRatio) {
+      options.barWidthRatio = barWidthRatio
+    }
+
     return options
   }
 

@@ -71,6 +71,23 @@ const fontSizeList = computed(() => {
       value: i
     })
   }
+  for (let i = 50; i <= 200; i = i + 10) {
+    arr.push({
+      name: i + '',
+      value: i
+    })
+  }
+  return arr
+})
+
+const sizeList = computed(() => {
+  const arr = []
+  for (let i = 4; i <= 20; i = i + 2) {
+    arr.push({
+      name: i + '',
+      value: i
+    })
+  }
   return arr
 })
 
@@ -155,11 +172,12 @@ const initMapCustomRange = () => {
 }
 /**
  * 计算自定义区间
+ * 最大最小值取等分区间的最大最小值
  */
 const calcMapCustomRange = () => {
   const customRange = getDynamicColorScale(
-    mapLegendDefaultRange.min,
-    mapLegendDefaultRange.max,
+    state.legendForm.miscForm.mapLegendMin,
+    state.legendForm.miscForm.mapLegendMax,
     state.legendForm.miscForm.mapLegendNumber
   )
   state.legendForm.miscForm.mapLegendCustomRange = []
@@ -178,9 +196,7 @@ const calcMapCustomRange = () => {
 const changeLegendCustomType = (prop?) => {
   const type = state.legendForm.miscForm.mapLegendRangeType
   if (type === 'custom') {
-    state.legendForm.miscForm.mapLegendCustomRange = cloneDeep(
-      mapLegendCustomRangeCacheList.slice(0, state.legendForm.miscForm.mapLegendNumber + 1)
-    )
+    calcMapCustomRange()
   } else {
     state.legendForm.miscForm.mapLegendCustomRange = []
   }
@@ -220,26 +236,49 @@ onMounted(() => {
     :model="state.legendForm"
     label-position="top"
   >
-    <el-form-item
-      :label="t('chart.icon')"
-      class="form-item"
-      :class="'form-item-' + themes"
-      v-if="showProperty('icon')"
-    >
-      <el-select
-        :effect="themes"
-        v-model="state.legendForm.icon"
-        :placeholder="t('chart.icon')"
-        @change="changeLegendStyle('icon')"
-      >
-        <el-option
-          v-for="item in iconSymbolOptions"
-          :key="item.value"
-          :label="item.name"
-          :value="item.value"
-        />
-      </el-select>
-    </el-form-item>
+    <el-row :gutter="8">
+      <el-col :span="12">
+        <el-form-item
+          :label="t('chart.icon')"
+          class="form-item"
+          :class="'form-item-' + themes"
+          v-if="showProperty('icon')"
+        >
+          <el-select
+            :effect="themes"
+            v-model="state.legendForm.icon"
+            :placeholder="t('chart.icon')"
+            @change="changeLegendStyle('icon')"
+          >
+            <el-option
+              v-for="item in iconSymbolOptions"
+              :key="item.value"
+              :label="item.name"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+      </el-col>
+
+      <el-col :span="12">
+        <el-form-item class="form-item" :class="'form-item-' + themes" v-if="showProperty('icon')">
+          <template #label>&nbsp;</template>
+          <el-select
+            :effect="themes"
+            v-model="state.legendForm.size"
+            size="small"
+            @change="changeLegendStyle('size')"
+          >
+            <el-option
+              v-for="option in sizeList"
+              :key="option.value"
+              :label="option.name"
+              :value="option.value"
+            />
+          </el-select>
+        </el-form-item>
+      </el-col>
+    </el-row>
 
     <el-space>
       <el-form-item
@@ -264,7 +303,7 @@ onMounted(() => {
         v-if="showProperty('fontSize')"
       >
         <template #label> &nbsp; </template>
-        <el-tooltip content="字号" :effect="toolTip" placement="top">
+        <el-tooltip :content="t('chart.font_size')" :effect="toolTip" placement="top">
           <el-select
             style="width: 108px"
             :effect="themes"

@@ -272,7 +272,7 @@ onMounted(() => {
           </el-select>
         </el-col>
         <el-col :span="useQuotaExt ? 2 : 3">
-          <el-tooltip effect="dark" content="字号" placement="top">
+          <el-tooltip effect="dark" :content="t('chart.font_size')" placement="top">
             <el-select
               v-model="item.fontSize"
               class="select-item"

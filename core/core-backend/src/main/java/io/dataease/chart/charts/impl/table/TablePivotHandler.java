@@ -33,7 +33,7 @@ public class TablePivotHandler extends GroupChartHandler {
 
     @Override
     public <T extends ChartCalcDataResult> T calcChartResult(ChartViewDTO view, AxisFormatResult formatResult, CustomFilterResult filterResult, Map<String, Object> sqlMap, SQLMeta sqlMeta, Provider provider) {
-        T result =  super.calcChartResult(view, formatResult, filterResult, sqlMap, sqlMeta, provider);
+        T result = super.calcChartResult(view, formatResult, filterResult, sqlMap, sqlMeta, provider);
         Map<String, Object> customCalc = calcCustomExpr(view, filterResult, sqlMap, sqlMeta, provider);
         result.getData().put("customCalc", customCalc);
         try {
@@ -45,7 +45,7 @@ public class TablePivotHandler extends GroupChartHandler {
             if (CollectionUtils.isNotEmpty(assistFields)) {
                 var req = new DatasourceRequest();
                 req.setDsList(dsMap);
-                var assistSql = assistSQL(originSql, assistFields);
+                var assistSql = assistSQL(originSql, assistFields, dsMap);
                 req.setQuery(assistSql);
                 logger.debug("calcite assistSql sql: " + assistSql);
                 var assistData = (List<String[]>) provider.fetchResultField(req).get("data");
@@ -98,7 +98,7 @@ public class TablePivotHandler extends GroupChartHandler {
                 var tmpData = new ArrayList<Map<String, Object>>();
                 dataMap.put("rowSubTotal", tmpData);
                 for (int i = 0; i < rowAxis.size(); i++) {
-                    if ( i == rowAxis.size() - 1) {
+                    if (i == rowAxis.size() - 1) {
                         break;
                     }
                     var xAxis = new ArrayList<>(colAxis);
@@ -137,7 +137,7 @@ public class TablePivotHandler extends GroupChartHandler {
                 var tmpData = new ArrayList<Map<String, Object>>();
                 dataMap.put("colSubTotal", tmpData);
                 for (int i = 0; i < colAxis.size(); i++) {
-                    if ( i == colAxis.size() - 1) {
+                    if (i == colAxis.size() - 1) {
                         break;
                     }
                     var xAxis = new ArrayList<>(rowAxis);
@@ -181,7 +181,7 @@ public class TablePivotHandler extends GroupChartHandler {
                 var tmpData = new ArrayList<Map<String, Object>>();
                 dataMap.put("colSubInRowTotal", tmpData);
                 for (int i = 0; i < colAxis.size(); i++) {
-                    if ( i == colAxis.size() - 1) {
+                    if (i == colAxis.size() - 1) {
                         break;
                     }
                     var xAxis = colAxis.subList(0, i + 1);
@@ -202,7 +202,7 @@ public class TablePivotHandler extends GroupChartHandler {
                 var tmpData = new ArrayList<Map<String, Object>>();
                 dataMap.put("rowSubInColTotal", tmpData);
                 for (int i = 0; i < rowAxis.size(); i++) {
-                    if ( i == rowAxis.size() - 1) {
+                    if (i == rowAxis.size() - 1) {
                         break;
                     }
                     var xAxis = rowAxis.subList(0, i + 1);
@@ -223,7 +223,7 @@ public class TablePivotHandler extends GroupChartHandler {
                 var tmpData = new ArrayList<List<Map<String, Object>>>();
                 dataMap.put("rowSubInColSub", tmpData);
                 for (int i = 0; i < rowAxis.size(); i++) {
-                    if ( i == rowAxis.size() - 1) {
+                    if (i == rowAxis.size() - 1) {
                         break;
                     }
                     var tmpList = new ArrayList<Map<String, Object>>();
@@ -231,7 +231,7 @@ public class TablePivotHandler extends GroupChartHandler {
                     var subRow = rowAxis.subList(0, i + 1);
                     var xAxis = new ArrayList<>(subRow);
                     for (int j = 0; j < colAxis.size(); j++) {
-                        if ( j == colAxis.size() - 1) {
+                        if (j == colAxis.size() - 1) {
                             break;
                         }
                         var subCol = colAxis.subList(0, j + 1);
@@ -284,8 +284,8 @@ public class TablePivotHandler extends GroupChartHandler {
     }
 
     private Tuple2<String, List<String[]>> getData(SQLMeta sqlMeta, List<ChartViewFieldDTO> xAxis, List<ChartViewFieldDTO> yAxis,
-                           List<ChartViewFieldDTO> allFields, boolean crossDs, Map<Long, DatasourceSchemaDTO> dsMap,
-                           ChartViewDTO view, Provider provider, boolean needOrder) {
+                                                   List<ChartViewFieldDTO> allFields, boolean crossDs, Map<Long, DatasourceSchemaDTO> dsMap,
+                                                   ChartViewDTO view, Provider provider, boolean needOrder) {
         DatasourceRequest datasourceRequest = new DatasourceRequest();
         datasourceRequest.setDsList(dsMap);
         Dimension2SQLObj.dimension2sqlObj(sqlMeta, xAxis, FieldUtil.transFields(allFields), crossDs, dsMap, Utils.getParams(FieldUtil.transFields(allFields)), view.getCalParams(), pluginManage);
@@ -298,6 +298,7 @@ public class TablePivotHandler extends GroupChartHandler {
         nullToBlank(data);
         return Tuples.of(querySql, data);
     }
+
     private void nullToBlank(List<String[]> data) {
         data.forEach(r -> {
             for (int i = 0; i < r.length; i++) {
@@ -315,7 +316,7 @@ public class TablePivotHandler extends GroupChartHandler {
             if (!quotaIds.contains(totalCfg.getDataeaseName())) {
                 continue;
             }
-            if (StringUtils.equalsIgnoreCase(totalCfg.getAggregation(), "CUSTOM")){
+            if (StringUtils.equalsIgnoreCase(totalCfg.getAggregation(), "CUSTOM")) {
                 var field = new ChartViewFieldDTO();
                 field.setDeType(DeTypeConstants.DE_FLOAT);
                 BeanUtils.copyBean(field, totalCfg);

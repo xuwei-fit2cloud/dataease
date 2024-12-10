@@ -116,7 +116,7 @@ export const DEFAULT_COLOR_CASE_DARK: DeepPartial<ChartAttr> = {
     alpha: 100,
     gradient: false,
     mapStyle: 'darkblue',
-    areaBaseColor: '5470C6',
+    areaBaseColor: '#5470C6',
     areaBorderColor: '#EBEEF5',
     gaugeStyle: 'default',
     tableBorderColor: '#CCCCCC',
@@ -343,7 +343,15 @@ export const DEFAULT_LABEL: ChartLabelAttr = {
   totalColor: '#FFF',
   totalFormatter: formatterItem,
   showStackQuota: false,
-  fullDisplay: false
+  fullDisplay: false,
+  proportionSeriesFormatter: {
+    show: false,
+    color: '#000',
+    fontSize: 12,
+    formatterCfg: {
+      decimalCount: 2
+    }
+  }
 }
 export const DEFAULT_TOOLTIP: ChartTooltipAttr = {
   show: true,
@@ -521,7 +529,8 @@ export const DEFAULT_LEGEND_STYLE: ChartLegendStyle = {
   orient: 'horizontal',
   icon: 'circle',
   color: '#333333',
-  fontSize: 12
+  fontSize: 12,
+  size: 4
 }
 
 export const DEFAULT_LEGEND_STYLE_BASE: ChartLegendStyle = {
@@ -531,7 +540,8 @@ export const DEFAULT_LEGEND_STYLE_BASE: ChartLegendStyle = {
   orient: 'horizontal',
   icon: 'circle',
   color: '#333333',
-  fontSize: 12
+  fontSize: 12,
+  size: 4
 }
 
 export const DEFAULT_LEGEND_STYLE_LIGHT: ChartLegendStyle = {
@@ -565,7 +575,8 @@ export const DEFAULT_XAXIS_STYLE: ChartAxisStyle = {
     color: '#333333',
     fontSize: 12,
     rotate: 0,
-    formatter: '{value}'
+    formatter: '{value}',
+    lengthLimit: 10
   },
   axisLine: {
     show: true,
@@ -609,7 +620,8 @@ export const DEFAULT_YAXIS_STYLE: ChartAxisStyle = {
     color: '#333333',
     fontSize: 12,
     rotate: 0,
-    formatter: '{value}'
+    formatter: '{value}',
+    lengthLimit: 10
   },
   axisLine: {
     show: false,
@@ -761,7 +773,8 @@ export const DEFAULT_THRESHOLD: ChartThreshold = {
   liquidThreshold: '',
   labelThreshold: [],
   tableThreshold: [],
-  textLabelThreshold: []
+  textLabelThreshold: [],
+  lineLabelThreshold: []
 }
 export const DEFAULT_SCROLL: ScrollCfg = {
   open: false,
@@ -1099,11 +1112,25 @@ export const BASE_ECHARTS_SELECT = {
   }
 }
 
+export const CHART_FONT_FAMILY_ORIGIN = [
+  { name: t('chart.font_family_ya_hei'), value: 'Microsoft YaHei' },
+  { name: t('chart.font_family_song_ti'), value: 'SimSun, "Songti SC", STSong' },
+  { name: t('chart.font_family_hei_ti'), value: 'SimHei, Helvetica' },
+  { name: t('chart.font_family_kai_ti'), value: 'KaiTi, "Kaiti SC", STKaiti' }
+]
+
+export const CHART_FONT_FAMILY_MAP_TRANS = {
+  'Microsoft YaHei': 'Microsoft YaHei',
+  'SimSun, "Songti SC", STSong': 'SimSun',
+  'SimHei, Helvetica': 'SimHei',
+  'KaiTi, "Kaiti SC", STKaiti': 'KaiTi'
+}
+
 export const CHART_FONT_FAMILY = [
-  { name: '微软雅黑', value: 'Microsoft YaHei' },
-  { name: '宋体', value: 'SimSun' },
-  { name: '黑体', value: 'SimHei' },
-  { name: '楷体', value: 'KaiTi' }
+  { name: t('chart.font_family_ya_hei'), value: 'Microsoft YaHei' },
+  { name: t('chart.font_family_song_ti'), value: 'SimSun' },
+  { name: t('chart.font_family_hei_ti'), value: 'SimHei' },
+  { name: t('chart.font_family_kai_ti'), value: 'KaiTi' }
 ]
 
 export const CHART_FONT_FAMILY_MAP = {
@@ -1334,7 +1361,7 @@ export const CHART_TYPE_CONFIGS = [
         render: 'antv',
         category: 'trend',
         value: 'stock-line',
-        title: 'K 线图',
+        title: t('chart.chart_stock_line'),
         icon: 'stock-line'
       }
     ]
@@ -1432,7 +1459,7 @@ export const CHART_TYPE_CONFIGS = [
         render: 'antv',
         category: 'map',
         value: 'symbolic-map',
-        title: '符号地图',
+        title: t('chart.chart_symbolic_map'),
         icon: 'symbolic-map'
       }
     ]
@@ -1516,14 +1543,14 @@ export const CHART_TYPE_CONFIGS = [
         render: 'custom',
         category: 'quota',
         value: 'rich-text',
-        title: '富文本',
+        title: t('visualization.rich_text'),
         icon: 'rich-text'
       },
       {
         render: 'custom',
         category: 'quota',
         value: 'picture-group',
-        title: '图片组',
+        title: t('visualization.picture_group'),
         icon: 'picture-group'
       }
     ]
@@ -1533,7 +1560,7 @@ export const CHART_TYPE_CONFIGS = [
 export const DEFAULT_BASIC_STYLE: ChartBasicStyle = {
   alpha: 100,
   tableBorderColor: '#CCCCCC',
-  tableScrollBarColor: 'rgba(0, 0, 0, 0.15)',
+  tableScrollBarColor: '#1f23294d',
   tableColumnMode: 'adapt',
   tableColumnWidth: 100,
   tableFieldWidth: [],
@@ -1562,6 +1589,7 @@ export const DEFAULT_BASIC_STYLE: ChartBasicStyle = {
   barDefault: true,
   radiusColumnBar: 'rightAngle',
   columnBarRightAngleRadius: 20,
+  columnWidthRatio: 60,
   barWidth: 40,
   barGap: 0.4,
   lineType: 'solid',
@@ -1604,7 +1632,12 @@ export const DEFAULT_BASIC_STYLE: ChartBasicStyle = {
   },
   zoomLevel: 7,
   customIcon: '',
-  showHoverStyle: true
+  showHoverStyle: true,
+  autoWrap: false,
+  maxLines: 3,
+  radarShowPoint: true,
+  radarPointSize: 4,
+  radarAreaColor: true
 }
 
 export const BASE_VIEW_CONFIG = {

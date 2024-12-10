@@ -16,9 +16,13 @@ import { Icon } from '@/components/icon-custom'
 import { download2AppTemplate, downloadCanvas2 } from '@/utils/imgUtils'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus-secondary'
-import { personInfoApi } from '@/api/user'
 import AppExportForm from '@/components/de-app/AppExportForm.vue'
 import { useEmitt } from '@/hooks/web/useEmitt'
+import { useUserStoreWithOut } from '@/store/modules/user'
+import { useI18n } from '@/hooks/web/useI18n'
+const userStore = useUserStoreWithOut()
+
+const userName = computed(() => userStore.getName)
 const appExportFormRef = ref(null)
 
 const dvMainStore = dvMainStoreWithOut()
@@ -35,13 +39,13 @@ const state = reactive({
   canvasStylePreview: null,
   canvasViewInfoPreview: null,
   dvInfo: null,
-  curPreviewGap: 0,
-  userLoginInfo: {}
+  curPreviewGap: 0
 })
 
 const { fullscreenFlag, canvasViewDataInfo } = storeToRefs(dvMainStore)
 
 const { width, node } = useMoveLine('DASHBOARD')
+const { t } = useI18n()
 
 const props = defineProps({
   showPosition: {
@@ -135,13 +139,13 @@ const downloadAsAppTemplate = downloadType => {
 const downLoadToAppPre = () => {
   const result = checkTemplate()
   if (result && result.length > 0) {
-    ElMessage.warning(`当前仪表板中[${result}]属于模版图表，无法导出，请先设置数据集！`)
+    ElMessage.warning(t('visualization.export_tips', [result]))
   } else {
     appExportFormRef.value.init({
       appName: state.dvInfo.name,
       icon: null,
       version: '2.0',
-      creator: state.userLoginInfo?.name,
+      creator: userName.value,
       required: '2.9.0',
       description: null
     })
@@ -189,18 +193,11 @@ const resourceNodeClick = data => {
 }
 
 const previewShowFlag = computed(() => !!dvMainStore.dvInfo?.name)
-const findUserData = callback => {
-  personInfoApi().then(rsp => {
-    callback(rsp)
-  })
-}
+
 onBeforeMount(() => {
   if (showPosition.value === 'preview') {
     dvMainStore.canvasDataInit()
   }
-  findUserData(res => {
-    state.userLoginInfo = res.data
-  })
 })
 const sideTreeStatus = ref(true)
 const changeSideTreeStatus = val => {
@@ -257,7 +254,7 @@ defineExpose({
     <el-container
       class="preview-area"
       :class="{ 'no-data': !hasTreeData }"
-      v-loading="requestStore.loadingMap[permissionStore.currentPath]"
+      v-loading="requestStore.loadingMap && requestStore.loadingMap[permissionStore.currentPath]"
     >
       <div
         @click="slideOpenChange"
@@ -295,15 +292,15 @@ defineExpose({
         </div>
       </template>
       <template v-else-if="hasTreeData && mounted">
-        <empty-background description="请在左侧选择仪表板" img-type="select" />
+        <empty-background :description="t('visualization.preview_select_tips')" img-type="select" />
       </template>
       <template v-else-if="mounted">
-        <empty-background description="暂无仪表板" img-type="none">
+        <empty-background :description="t('visualization.have_none_resource')" img-type="none">
           <el-button v-if="rootManage && !isDataEaseBi" @click="createNew" type="primary">
             <template #icon>
               <Icon name="icon_add_outlined"><icon_add_outlined class="svg-icon" /></Icon>
             </template>
-            {{ $t('commons.create') }}{{ $t('chart.dashboard') }}
+            {{ t('commons.create') }}{{ t('chart.dashboard') }}
           </el-button>
         </empty-background>
       </template>

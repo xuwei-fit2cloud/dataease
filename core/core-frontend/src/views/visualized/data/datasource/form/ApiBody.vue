@@ -213,7 +213,7 @@ const emits = defineEmits(['headersChange'])
         {{ t('datasource.body_raw') }}
       </el-radio>
     </el-radio-group>
-    <div v-if="apiBody.type == 'Form_Data' || apiBody.type == 'WWW_FORM'">
+    <div style="padding-top: 16px" v-if="apiBody.type == 'Form_Data' || apiBody.type == 'WWW_FORM'">
       <api-variable
         :is-read-only="isReadOnly"
         :parameters="apiBody.kvs"

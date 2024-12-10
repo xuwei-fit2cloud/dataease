@@ -5,6 +5,7 @@ import io.dataease.api.chart.ChartDataApi;
 import io.dataease.api.chart.dto.ViewDetailField;
 import io.dataease.api.chart.request.ChartExcelRequest;
 import io.dataease.api.chart.request.ChartExcelRequestInner;
+import io.dataease.auth.DeLinkPermit;
 import io.dataease.chart.constant.ChartConstants;
 import io.dataease.chart.manage.ChartDataManage;
 import io.dataease.constant.AuthConstant;
@@ -14,9 +15,11 @@ import io.dataease.dataset.server.DatasetFieldServer;
 import io.dataease.engine.constant.DeTypeConstants;
 import io.dataease.exception.DEException;
 import io.dataease.exportCenter.manage.ExportCenterManage;
+import io.dataease.exportCenter.util.ExportCenterUtils;
 import io.dataease.extensions.datasource.dto.DatasetTableFieldDTO;
 import io.dataease.extensions.view.dto.ChartViewDTO;
 import io.dataease.extensions.view.dto.ChartViewFieldDTO;
+import io.dataease.extensions.view.dto.FormatterCfgDTO;
 import io.dataease.license.manage.F2CLicLimitedManage;
 import io.dataease.result.ResultCode;
 import io.dataease.utils.JsonUtil;
@@ -28,6 +31,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
@@ -38,8 +42,10 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -50,7 +56,7 @@ import java.util.stream.Collectors;
  * @Author Junjun
  */
 @RestController
-@RequestMapping("chartData")
+@RequestMapping("/chartData")
 public class ChartDataServer implements ChartDataApi {
     @Resource
     private ChartDataManage chartDataManage;
@@ -59,8 +65,7 @@ public class ChartDataServer implements ChartDataApi {
 
     @Resource
     private VisualizationTemplateExtendDataManage extendDataManage;
-    @Value("${dataease.export.views.limit:100000}")
-    private Integer limit;
+
     @Resource
     private PermissionManage permissionManage;
     @Resource
@@ -68,11 +73,12 @@ public class ChartDataServer implements ChartDataApi {
 
     @Resource(name = "f2CLicLimitedManage")
     private F2CLicLimitedManage f2CLicLimitedManage;
+    @Value("${dataease.export.page.size:50000}")
+    private Integer extractPageSize;
+    private final Long sheetLimit = 1000000L;
 
-    private Integer getExportLimit() {
-        return Math.toIntExact(Math.min(f2CLicLimitedManage.checkDatasetLimit(), limit));
-    }
 
+    @DeLinkPermit("#p0.sceneId")
     @Override
     public ChartViewDTO getData(ChartViewDTO chartViewDTO) throws Exception {
         try {
@@ -83,12 +89,13 @@ public class ChartDataServer implements ChartDataApi {
                 return chartDataManage.calcData(chartViewDTO);
             }
         } catch (Exception e) {
-            DEException.throwException(ResultCode.DATA_IS_WRONG.code(), e.getMessage());
+            DEException.throwException(ResultCode.DATA_IS_WRONG.code(), e.getMessage() + "\n\n" + ExceptionUtils.getStackTrace(e));
         }
         return null;
     }
 
-    public void findExcelData(ChartExcelRequest request) {
+    public ChartViewDTO findExcelData(ChartExcelRequest request) {
+        ChartViewDTO chartViewInfo = new ChartViewDTO();
         try {
             ChartViewDTO viewDTO = request.getViewInfo();
             viewDTO.setIsExcelExport(true);
@@ -96,40 +103,135 @@ public class ChartDataServer implements ChartDataApi {
             Integer[] dsTypes = null;
             //downloadType = dataset 为下载原始名字 这里做数据转换模拟 table-info类型图表导出
             if ("dataset".equals(request.getDownloadType())) {
+                viewDTO.setResultMode(ChartConstants.VIEW_RESULT_MODE.ALL);
                 viewDTO.setType("table-info");
                 List<DatasetTableFieldDTO> sourceFields = datasetFieldServer.listByDatasetGroup(viewDTO.getTableId());
                 List<String> fileNames = permissionManage.filterColumnPermissions(sourceFields, new HashMap<>(), viewDTO.getTableId(), null).stream().map(DatasetTableFieldDTO::getDataeaseName).collect(Collectors.toList());
                 sourceFields = sourceFields.stream().filter(datasetTableFieldDTO -> fileNames.contains(datasetTableFieldDTO.getDataeaseName())).collect(Collectors.toList());
-                dsHeader = sourceFields.stream()
-                        .map(DatasetTableFieldDTO::getName)
-                        .toArray(String[]::new);
-                dsTypes = sourceFields.stream()
-                        .map(DatasetTableFieldDTO::getDeType)
-                        .toArray(Integer[]::new);
+                dsHeader = sourceFields.stream().map(DatasetTableFieldDTO::getName).toArray(String[]::new);
+                dsTypes = sourceFields.stream().map(DatasetTableFieldDTO::getDeType).toArray(Integer[]::new);
                 TypeReference<List<ChartViewFieldDTO>> listTypeReference = new TypeReference<List<ChartViewFieldDTO>>() {
                 };
                 viewDTO.setXAxis(JsonUtil.parseList(JsonUtil.toJSONString(sourceFields).toString(), listTypeReference));
             }
-            Integer curLimit = getExportLimit();
+            int curLimit = Math.toIntExact(ExportCenterUtils.getExportLimit("view"));
+            int curDsLimit = Math.toIntExact(ExportCenterUtils.getExportLimit("dataset"));
+            int viewLimit = Math.min(curLimit, curDsLimit);
             if (ChartConstants.VIEW_RESULT_MODE.CUSTOM.equals(viewDTO.getResultMode())) {
                 Integer limitCount = viewDTO.getResultCount();
-                viewDTO.setResultCount(Math.min(curLimit, limitCount));
+                viewDTO.setResultCount(Math.min(viewLimit, limitCount));
             } else {
-                viewDTO.setResultCount(curLimit);
+                viewDTO.setResultCount(viewLimit);
             }
-            ChartViewDTO chartViewInfo = getData(viewDTO);
+            chartViewInfo = getData(viewDTO);
             List<Object[]> tableRow = (List) chartViewInfo.getData().get("sourceData");
             if ("dataset".equals(request.getDownloadType())) {
                 request.setHeader(dsHeader);
                 request.setExcelTypes(dsTypes);
             }
+            if (CollectionUtils.isNotEmpty(tableRow)) {
+                FormatterCfgDTO formatterCfgDTO = new FormatterCfgDTO();
+                for (Object[] objects : tableRow) {
+                    for (int i = 0; i < viewDTO.getXAxis().size(); i++) {
+                        if (viewDTO.getXAxis().get(i).getDeType().equals(DeTypeConstants.DE_INT) || viewDTO.getXAxis().get(i).getDeType().equals(DeTypeConstants.DE_FLOAT)) {
+                            try {
+                                objects[i] = valueFormatter(new BigDecimal(String.valueOf(objects[i])), viewDTO.getXAxis().get(i).getFormatterCfg() == null ? formatterCfgDTO : viewDTO.getXAxis().get(i).getFormatterCfg());
+                            } catch (Exception ignore) {
+                                ignore.printStackTrace();
+                            }
+                        }
+                    }
+                }
+            }
             request.setDetails(tableRow);
+            request.setData(chartViewInfo.getData());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
+        return chartViewInfo;
     }
 
+
+    public static String valueFormatter(BigDecimal value, FormatterCfgDTO formatter) {
+        if (value == null) {
+            return null;
+        }
+        String result;
+        if (formatter.getType().equals("auto")) {
+            result = transSeparatorAndSuffix(String.valueOf(transUnit(value, formatter)), formatter);
+        } else if (formatter.getType().equals("value")) {
+            result = transSeparatorAndSuffix(transDecimal(transUnit(value, formatter), formatter), formatter);
+        } else if (formatter.getType().equals("percent")) {
+            value = value.multiply(BigDecimal.valueOf(100));
+            result = transSeparatorAndSuffix(transDecimal(value, formatter), formatter);
+        } else {
+            result = value.toString();
+        }
+        return result;
+    }
+
+    private static BigDecimal transUnit(BigDecimal value, FormatterCfgDTO formatter) {
+        return value.divide(BigDecimal.valueOf(formatter.getUnit()));
+    }
+
+    private static String transDecimal(BigDecimal value, FormatterCfgDTO formatter) {
+        DecimalFormat df = new DecimalFormat("0." + new String(new char[formatter.getDecimalCount()]).replace('\0', '0'));
+        return df.format(value);
+    }
+
+    private static String transSeparatorAndSuffix(String value, FormatterCfgDTO formatter) {
+        StringBuilder sb = new StringBuilder(value);
+
+        if (formatter.getThousandSeparator()) {
+            String[] parts = value.split("\\.");
+            parts[0] = addThousandSeparators(parts[0]);
+            sb = new StringBuilder(String.join(".", parts));
+        }
+        if (formatter.getType().equals("percent")) {
+            sb.append('%');
+        } else {
+            switch (formatter.getUnit()) {
+                case 1000:
+                    sb.append("千");
+                    break;
+                case 10000:
+                    sb.append("万");
+                    break;
+                case 1000000:
+                    sb.append("百万");
+                    break;
+                case 100000000:
+                    sb.append('亿');
+                    break;
+                default:
+                    break;
+            }
+        }
+        String suffix = formatter.getSuffix().trim();
+        if (!suffix.isEmpty()) {
+            sb.append(suffix);
+        }
+        return sb.toString();
+    }
+
+    private static String addThousandSeparators(String number) {
+        StringBuilder sb = new StringBuilder();
+        int len = number.length();
+        int count = 0;
+        for (int i = len - 1; i >= 0; i--) {
+            sb.append(number.charAt(i));
+            count++;
+            if (count == 3 && i != 0) {
+                sb.append(',');
+                count = 0;
+            }
+        }
+
+        return sb.reverse().toString();
+    }
+
+
+    @DeLinkPermit("#p0.dvId")
     @Override
     public void innerExportDetails(ChartExcelRequest request, HttpServletResponse response) throws Exception {
         HttpServletRequest httpServletRequest = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
@@ -138,9 +240,7 @@ public class ChartDataServer implements ChartDataApi {
         if ((StringUtils.isNotEmpty(linkToken) && !request.isDataEaseBi()) || (request.isDataEaseBi() && StringUtils.isEmpty(linkToken))) {
             OutputStream outputStream = response.getOutputStream();
             try {
-                findExcelData(request);
                 Workbook wb = new SXSSFWorkbook();
-
                 //给单元格设置样式
                 CellStyle cellStyle = wb.createCellStyle();
                 Font font = wb.createFont();
@@ -155,35 +255,50 @@ public class ChartDataServer implements ChartDataApi {
                 //设置单元格填充样式(使用纯色背景颜色填充)
                 cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-                if (CollectionUtils.isEmpty(request.getMultiInfo())) {
-                    List<Object[]> details = request.getDetails();
-                    Integer[] excelTypes = request.getExcelTypes();
-                    details.add(0, request.getHeader());
-                    ViewDetailField[] detailFields = request.getDetailFields();
-                    Object[] header = request.getHeader();
-
-                    //明细sheet
-                    Sheet detailsSheet = wb.createSheet("数据");
-
-                    setExcelData(detailsSheet, cellStyle, header, details, detailFields, excelTypes);
+                if ("dataset".equals(request.getDownloadType()) || request.getViewInfo().getType().equalsIgnoreCase("table-info")) {
+                    List<Object[]> details = new ArrayList<>();
+                    Sheet detailsSheet;
+                    Integer sheetIndex = 1;
+                    request.getViewInfo().getChartExtRequest().setPageSize(Long.valueOf(extractPageSize));
+                    ChartViewDTO chartViewDTO = findExcelData(request);
+                    for (long i = 1; i < chartViewDTO.getTotalPage() + 1; i++) {
+                        request.getViewInfo().getChartExtRequest().setGoPage(i);
+                        findExcelData(request);
+                        details.addAll(request.getDetails());
+                        if ((details.size() + extractPageSize) > sheetLimit || i == chartViewDTO.getTotalPage()) {
+                            detailsSheet = wb.createSheet("数据" + sheetIndex);
+                            Integer[] excelTypes = request.getExcelTypes();
+                            details.add(0, request.getHeader());
+                            ViewDetailField[] detailFields = request.getDetailFields();
+                            Object[] header = request.getHeader();
+                            ChartDataServer.setExcelData(detailsSheet, cellStyle, header, details, detailFields, excelTypes);
+                            sheetIndex++;
+                            details.clear();
+                        }
+                    }
                 } else {
-                    //多个sheet
-                    for (int i = 0; i < request.getMultiInfo().size(); i++) {
-                        ChartExcelRequestInner requestInner = request.getMultiInfo().get(i);
-
-                        List<Object[]> details = requestInner.getDetails();
-                        Integer[] excelTypes = requestInner.getExcelTypes();
-                        details.add(0, requestInner.getHeader());
-                        ViewDetailField[] detailFields = requestInner.getDetailFields();
-                        Object[] header = requestInner.getHeader();
-
-                        //明细sheet
-                        Sheet detailsSheet = wb.createSheet("数据 " + (i + 1));
-
+                    findExcelData(request);
+                    if (CollectionUtils.isEmpty(request.getMultiInfo())) {
+                        List<Object[]> details = request.getDetails();
+                        Integer[] excelTypes = request.getExcelTypes();
+                        details.add(0, request.getHeader());
+                        ViewDetailField[] detailFields = request.getDetailFields();
+                        Object[] header = request.getHeader();
+                        Sheet detailsSheet = wb.createSheet("数据");
                         setExcelData(detailsSheet, cellStyle, header, details, detailFields, excelTypes);
+                    } else {
+                        for (int i = 0; i < request.getMultiInfo().size(); i++) {
+                            ChartExcelRequestInner requestInner = request.getMultiInfo().get(i);
+                            List<Object[]> details = requestInner.getDetails();
+                            Integer[] excelTypes = requestInner.getExcelTypes();
+                            details.add(0, requestInner.getHeader());
+                            ViewDetailField[] detailFields = requestInner.getDetailFields();
+                            Object[] header = requestInner.getHeader();
+                            Sheet detailsSheet = wb.createSheet("数据 " + (i + 1));
+                            setExcelData(detailsSheet, cellStyle, header, details, detailFields, excelTypes);
+                        }
                     }
                 }
-
                 response.setContentType("application/vnd.ms-excel");
                 //文件名称
                 response.setHeader("Content-disposition", "attachment;filename=" + URLEncoder.encode(request.getViewName(), StandardCharsets.UTF_8) + ".xlsx");
@@ -197,6 +312,12 @@ public class ChartDataServer implements ChartDataApi {
             exportCenterManage.addTask(request.getViewId(), "chart", request);
             return;
         }
+    }
+
+    @DeLinkPermit("#p0.dvId")
+    @Override
+    public void innerExportDataSetDetails(ChartExcelRequest request, HttpServletResponse response) throws Exception {
+        this.innerExportDetails(request, response);
     }
 
 
@@ -286,7 +407,11 @@ public class ChartDataServer implements ChartDataApi {
                             detailsSheet.setColumnWidth(j, 255 * 20);
                         } else if (cellValObj != null) {
                             try {
-                                cell.setCellValue(cellValObj.toString());
+                                if ((excelTypes[j].equals(DeTypeConstants.DE_INT) || excelTypes[j].equals(DeTypeConstants.DE_FLOAT)) && StringUtils.isNotEmpty(cellValObj.toString())) {
+                                    cell.setCellValue(Double.valueOf(cellValObj.toString()));
+                                } else if (cellValObj != null) {
+                                    cell.setCellValue(cellValObj.toString());
+                                }
                             } catch (Exception e) {
                                 LogUtil.warn("export excel data transform error");
                             }

@@ -4,10 +4,14 @@ import {
 } from '@/views/chart/components/js/panel/types/impl/g2plot'
 import { cloneDeep, defaultTo, isEmpty, map } from 'lodash-es'
 import {
+  configAxisLabelLengthLimit,
+  configPlotTooltipEvent,
   getPadding,
+  getTooltipContainer,
   getYAxis,
   getYAxisExt,
-  setGradientColor
+  setGradientColor,
+  TOOLTIP_TPL
 } from '@/views/chart/components/js/panel/common/common_antv'
 import type {
   BidirectionalBar as G2BidirectionalBar,
@@ -171,7 +175,8 @@ export class BidirectionalHorizontalBar extends G2PlotChartView<
         ...sourceData[0]
       }
     })
-
+    configPlotTooltipEvent(chart, newChart)
+    configAxisLabelLengthLimit(chart, newChart)
     return newChart
   }
 
@@ -299,7 +304,10 @@ export class BidirectionalHorizontalBar extends G2PlotChartView<
           })
         }
         return result
-      }
+      },
+      container: getTooltipContainer(`tooltip-${chart.id}`),
+      itemTpl: TOOLTIP_TPL,
+      enterable: true
     }
     return {
       ...options,
@@ -310,15 +318,13 @@ export class BidirectionalHorizontalBar extends G2PlotChartView<
   protected configLegend(chart: Chart, options: BidirectionalBarOptions): BidirectionalBarOptions {
     const o = super.configLegend(chart, options)
     if (o.legend) {
-      o.legend.itemName = {
-        formatter: (_text: string, _item: any, index: number) => {
-          const yaxis = chart.yAxis[0]
-          const yaxisExt = chart.yAxisExt[0]
-          if (index === 0) {
-            return yaxis.chartShowName ? yaxis.chartShowName : yaxis.name
-          }
-          return yaxisExt.chartShowName ? yaxisExt.chartShowName : yaxisExt.name
+      o.legend.itemName.formatter = (_text: string, _item: any, index: number) => {
+        const yaxis = chart.yAxis[0]
+        const yaxisExt = chart.yAxisExt[0]
+        if (index === 0) {
+          return yaxis.chartShowName ? yaxis.chartShowName : yaxis.name
         }
+        return yaxisExt.chartShowName ? yaxisExt.chartShowName : yaxisExt.name
       }
     }
     return o
@@ -438,7 +444,8 @@ export class BidirectionalHorizontalBar extends G2PlotChartView<
             layout,
             style: {
               fill: l.color,
-              fontSize: l.fontSize
+              fontSize: l.fontSize,
+              fontFamily: chart.fontFamily
             },
             formatter: param => {
               let yaxis = yAxis[0]
@@ -485,6 +492,7 @@ export class BidirectionalHorizontalBar extends G2PlotChartView<
                   textAlign: label.position === 'middle' ? 'start' : textAlign,
                   textBaseline: 'top',
                   fontSize: labelCfg.fontSize,
+                  fontFamily: chart.fontFamily,
                   fill: labelCfg.color
                 }
               })

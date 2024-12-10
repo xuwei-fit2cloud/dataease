@@ -9,10 +9,9 @@
   >
     <div class="export-button">
       <el-select
-        v-if="optType === 'enlarge' && authShow"
+        v-if="optType === 'enlarge' && exportPermissions[0]"
         v-model="pixel"
         class="pixel-select"
-        size="small"
       >
         <el-option-group v-for="group in pixelOptions" :key="group.label" :label="group.label">
           <el-option
@@ -26,7 +25,7 @@
 
       <el-button
         class="m-button"
-        v-if="optType === 'enlarge' && authShow"
+        v-if="optType === 'enlarge' && exportPermissions[0]"
         link
         icon="Download"
         size="middle"
@@ -36,7 +35,7 @@
       </el-button>
       <el-button
         class="m-button"
-        v-if="optType === 'details' && authShow"
+        v-if="optType === 'details' && exportPermissions[1]"
         link
         icon="Download"
         size="middle"
@@ -46,11 +45,11 @@
         "
         @click="downloadViewDetails('view')"
       >
-        导出Excel
+        {{ t('chart.export_excel') }}
       </el-button>
       <el-button
         class="m-button"
-        v-if="optType === 'details' && authShow"
+        v-if="optType === 'details' && exportPermissions[2]"
         link
         icon="Download"
         size="middle"
@@ -60,24 +59,28 @@
           requestStore.loadingMap[permissionStore.currentPath] > 0 || state.dataFrom === 'template'
         "
       >
-        导出原始明细
+        {{ t('chart.export_raw_details') }}
       </el-button>
       <el-button
         class="m-button"
-        v-if="optType === 'details' && authShow && viewInfo.type === 'table-pivot'"
+        v-if="optType === 'details' && exportPermissions[2] && viewInfo.type === 'table-pivot'"
         link
         icon="Download"
         size="middle"
         :loading="exportLoading"
         @click="exportAsFormattedExcel"
       >
-        <span>导出Excel(带格式)</span>
+        <span>{{ t('chart.export_excel_formatter') }}</span>
       </el-button>
-      <el-divider class="close-divider" direction="vertical" v-if="authShow" />
+      <el-divider
+        class="close-divider"
+        direction="vertical"
+        v-if="exportPermissions[0] || exportPermissions[1] || exportPermissions[2]"
+      />
     </div>
     <div
       v-loading="downLoading"
-      element-loading-text="导出中..."
+      :element-loading-text="t('visualization.export_loading')"
       element-loading-background="rgba(122, 122, 122, 1)"
       class="enlarge-outer"
       v-if="dialogShow"
@@ -150,6 +153,7 @@ import { useRequestStoreWithOut } from '@/store/modules/request'
 import { usePermissionStoreWithOut } from '@/store/modules/permission'
 import { activeWatermarkCheckUser } from '@/components/watermark/watermark'
 import { getCanvasStyle } from '@/utils/style'
+import { exportPermission } from '@/utils/utils'
 const downLoading = ref(false)
 const dvMainStore = dvMainStoreWithOut()
 const dialogShow = ref(false)
@@ -167,7 +171,6 @@ const { dvInfo, editMode } = storeToRefs(dvMainStore)
 const exportLoading = ref(false)
 const sourceViewType = ref()
 const activeName = ref('left')
-const userInfo = ref(null)
 const DETAIL_CHART_ATTR: DeepPartial<ChartObj> = {
   render: 'antv',
   type: 'table-info',
@@ -183,7 +186,8 @@ const DETAIL_CHART_ATTR: DeepPartial<ChartObj> = {
     tableCell: {
       tableItemBgColor: '#FFFFFF',
       tableFontColor: '#7C7E81',
-      enableTableCrossBG: false
+      enableTableCrossBG: false,
+      mergeCells: false
     },
     tooltip: {
       show: false
@@ -211,7 +215,9 @@ const DETAIL_TABLE_ATTR: DeepPartial<ChartObj> = {
   showPosition: 'dialog'
 }
 
-const authShow = computed(() => editMode.value === 'edit' || dvInfo.value.weight > 3)
+const exportPermissions = computed(() =>
+  exportPermission(dvInfo.value['weight'], dvInfo.value['ext'])
+)
 
 const customExport = computed(() => {
   const style =
@@ -322,17 +328,19 @@ const downloadViewImage = () => {
 
 const downloadViewDetails = (downloadType = 'view') => {
   const viewDataInfo = dvMainStore.getViewDataDetails(viewInfo.value.id)
+  const viewInfoSource = dvMainStore.getViewDetails(viewInfo.value.id)
   if (!viewDataInfo) {
-    ElMessage.error('当前无字段，无法导出')
+    ElMessage.error(t('chart.field_is_empty_export_error'))
     return
   }
   const chartExtRequest = dvMainStore.getLastViewRequestInfo(viewInfo.value.id)
   const chart = {
-    ...viewInfo.value,
+    ...viewInfoSource,
     chartExtRequest,
     data: viewDataInfo,
     type: sourceViewType.value,
-    downloadType: downloadType
+    downloadType: downloadType,
+    busiFlag: dvInfo.value.type
   }
   exportLoading.value = true
   exportExcelDownload(chart, () => {
@@ -358,7 +366,7 @@ const openMessageLoading = cb => {
   const customClass = `de-message-loading de-message-export`
   ElMessage({
     message: h('p', null, [
-      '后台导出中,可前往',
+      t('data_fill.exporting'),
       h(
         ElButton,
         {
@@ -371,7 +379,7 @@ const openMessageLoading = cb => {
         },
         t('data_export.export_center')
       ),
-      '查看进度，进行下载'
+      t('data_fill.progress_to_download')
     ]),
     iconClass,
     icon: h(RefreshLeft),

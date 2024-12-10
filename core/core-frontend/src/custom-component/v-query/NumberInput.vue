@@ -2,8 +2,10 @@
 import { toRefs, onBeforeMount, type PropType, type Ref, inject, computed, nextTick } from 'vue'
 interface SelectConfig {
   id: string
+  defaultValueCheck: boolean
   defaultNumValueEnd: number
   numValueEnd: number
+  queryConditionWidth: number
   numValueStart: number
   defaultNumValueStart: number
   placeholder: string
@@ -11,7 +13,7 @@ interface SelectConfig {
 const placeholder: Ref = inject('placeholder')
 
 const placeholderText = computed(() => {
-  if (placeholder.value.placeholderShow) {
+  if (placeholder?.value?.placeholderShow) {
     return props.config.placeholder
   }
   return ' '
@@ -23,10 +25,12 @@ const props = defineProps({
     default: () => {
       return {
         id: '',
+        queryConditionWidth: 0,
         defaultNumValueEnd: '',
         defaultNumValueStart: '',
         numValueEnd: '',
-        numValueStart: ''
+        numValueStart: '',
+        defaultValueCheck: false
       }
     }
   },
@@ -38,6 +42,11 @@ const props = defineProps({
 
 const { config } = toRefs(props)
 const setParams = () => {
+  if (!config.value.defaultValueCheck) {
+    config.value.numValueEnd = undefined
+    config.value.numValueStart = undefined
+    return
+  }
   const { defaultNumValueEnd, defaultNumValueStart } = config.value
   config.value.numValueEnd = defaultNumValueEnd
   config.value.numValueStart = defaultNumValueStart
@@ -48,8 +57,18 @@ onBeforeMount(() => {
 const queryConditionWidth = inject('com-width', Function, true)
 const customStyle = inject<{ background: string }>('$custom-style-filter')
 const isConfirmSearch = inject('is-confirm-search', Function, true)
+
+const getCustomWidth = () => {
+  if (placeholder?.value?.placeholderShow) {
+    if (props.config.queryConditionWidth === undefined) {
+      return queryConditionWidth()
+    }
+    return props.config.queryConditionWidth
+  }
+  return 227
+}
 const selectStyle = computed(() => {
-  return { width: queryConditionWidth() + 'px' }
+  return { width: getCustomWidth() + 'px' }
 })
 const handleValueChange = () => {
   if (!props.isConfig) {

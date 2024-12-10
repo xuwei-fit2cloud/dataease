@@ -6,7 +6,9 @@ import io.dataease.api.visualization.dto.VisualizationLinkJumpDTO;
 import io.dataease.api.visualization.dto.VisualizationLinkJumpInfoDTO;
 import io.dataease.api.visualization.request.VisualizationLinkJumpBaseRequest;
 import io.dataease.api.visualization.response.VisualizationLinkJumpBaseResponse;
+import io.dataease.api.visualization.vo.VisualizationOutParamsJumpVO;
 import io.dataease.api.visualization.vo.VisualizationViewTableVO;
+import io.dataease.auth.DeLinkPermit;
 import io.dataease.chart.dao.auto.entity.CoreChartView;
 import io.dataease.chart.dao.auto.mapper.CoreChartViewMapper;
 import io.dataease.extensions.datasource.dto.DatasetTableFieldDTO;
@@ -67,6 +69,7 @@ public class VisualizationLinkJumpService implements VisualizationLinkJumpApi {
         return extVisualizationLinkageMapper.queryTableFieldWithViewId(viewId);
     }
 
+    @DeLinkPermit
     //获取仪表板的跳转信息
     @Override
     public VisualizationLinkJumpBaseResponse queryVisualizationJumpInfo(Long dvId) {
@@ -135,6 +138,7 @@ public class VisualizationLinkJumpService implements VisualizationLinkJumpApi {
         });
     }
 
+    @DeLinkPermit("#p0.targetDvId")
     @Override
     public VisualizationLinkJumpBaseResponse queryTargetVisualizationJumpInfo(VisualizationLinkJumpBaseRequest request) {
         List<VisualizationLinkJumpDTO> result = extVisualizationLinkJumpMapper.getTargetVisualizationJumpInfo(request);
@@ -145,15 +149,18 @@ public class VisualizationLinkJumpService implements VisualizationLinkJumpApi {
     public VisualizationComponentDTO viewTableDetailList(Long dvId) {
         DataVisualizationInfo dvInfo = dataVisualizationInfoMapper.selectById(dvId);
         List<VisualizationViewTableVO> result;
+        List<VisualizationOutParamsJumpVO> outParamsJumpInfo;
         String componentData;
         if (dvInfo != null) {
             result = extVisualizationLinkJumpMapper.getViewTableDetails(dvId).stream().filter(viewTableInfo -> dvInfo.getComponentData().indexOf(viewTableInfo.getId().toString()) > -1).collect(Collectors.toList());
             componentData = dvInfo.getComponentData();
+            outParamsJumpInfo = extVisualizationLinkJumpMapper.queryOutParamsTargetWithDvId(dvId);
         } else {
             result = new ArrayList<>();
+            outParamsJumpInfo = new ArrayList<>();
             componentData = "[]";
         }
-        return new VisualizationComponentDTO(componentData,result);
+        return new VisualizationComponentDTO(componentData,result,outParamsJumpInfo);
 
     }
 

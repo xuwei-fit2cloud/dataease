@@ -78,6 +78,17 @@ const props = defineProps({
   isSelector: {
     type: Boolean,
     default: false
+  },
+  // 显示悬浮按钮
+  showPopBar: {
+    type: Boolean,
+    default: false
+  },
+  // 字体
+  fontFamily: {
+    type: String,
+    required: false,
+    default: 'inherit'
   }
 })
 
@@ -91,7 +102,9 @@ const {
   previewActive,
   downloadStatus,
   outerScale,
-  outerSearchCount
+  outerSearchCount,
+  showPopBar,
+  fontFamily
 } = toRefs(props)
 const domId = 'preview-' + canvasId.value
 const scaleWidthPoint = ref(100)
@@ -135,9 +148,12 @@ const canvasStyle = computed(() => {
     style['overflowY'] = 'hidden !important'
   }
   if (canvasStyleData.value && canvasStyleData.value.width && isMainCanvas(canvasId.value)) {
-    style = {
-      ...getCanvasStyle(canvasStyleData.value),
-      height: dashboardActive.value
+    style = getCanvasStyle(canvasStyleData.value)
+    if (canvasStyleData.value?.screenAdaptor === 'keep') {
+      style['height'] = canvasStyleData.value?.height + 'px'
+      style['width'] = canvasStyleData.value?.width + 'px'
+    } else {
+      style['height'] = dashboardActive.value
         ? downloadStatus.value
           ? getDownloadStatusMainHeight()
           : '100%'
@@ -145,11 +161,11 @@ const canvasStyle = computed(() => {
           canvasStyleData.value?.screenAdaptor === 'widthFirst'
         ? changeStyleWithScale(canvasStyleData.value?.height, scaleMin.value) + 'px'
         : '100%'
+      style['width'] =
+        !dashboardActive.value && canvasStyleData.value?.screenAdaptor === 'heightFirst'
+          ? changeStyleWithScale(canvasStyleData.value?.width, scaleHeightPoint.value) + 'px'
+          : '100%'
     }
-    style['width'] =
-      !dashboardActive.value && canvasStyleData.value?.screenAdaptor === 'heightFirst'
-        ? changeStyleWithScale(canvasStyleData.value?.width, scaleHeightPoint.value) + 'px'
-        : '100%'
   }
   return style
 })
@@ -235,7 +251,8 @@ const resetLayout = () => {
           baseComponentData.value,
           canvasStyleData.value,
           scaleMin.value || outerScale.value * 100,
-          scaleMinHeight || outerScale.value * 100
+          scaleMinHeight || outerScale.value * 100,
+          outerScale.value * 100
         )
         scaleMin.value = isMainCanvas(canvasId.value) ? scaleMin.value : outerScale.value * 100
       }
@@ -301,18 +318,25 @@ const initWatermark = (waterDomId = 'preview-canvas-main') => {
 // 目标校验： 需要校验targetSourceId 是否是当前可视化资源ID
 const winMsgHandle = event => {
   const msgInfo = event.data
-  // 校验targetSourceId
-  if (
-    msgInfo &&
-    msgInfo.type === 'attachParams' &&
-    msgInfo.targetSourceId === dvInfo.value.id + '' &&
-    isMainCanvas(canvasId.value)
-  ) {
-    const attachParams = msgInfo.params
-    state.initState = false
-    dvMainStore.addOuterParamsFilter(attachParams, baseComponentData.value, 'outer')
-    state.initState = true
-  }
+  if (msgInfo?.targetSourceId === dvInfo.value.id + '' && isMainCanvas(canvasId.value))
+    if (msgInfo.type === 'attachParams') {
+      winMsgOuterParamsHandle(event)
+    } else if (msgInfo.type === 'webParams') {
+      // 网络消息处理
+      winMsgWebParamsHandle(msgInfo)
+    }
+}
+
+const winMsgWebParamsHandle = msgInfo => {
+  const params = msgInfo.params
+  dvMainStore.addWebParamsFilter(params, baseComponentData.value)
+}
+
+const winMsgOuterParamsHandle = msgInfo => {
+  const attachParams = msgInfo.params
+  state.initState = false
+  dvMainStore.addOuterParamsFilter(attachParams, baseComponentData.value, 'outer')
+  state.initState = true
 }
 
 onMounted(() => {
@@ -397,7 +421,10 @@ const dataVPreview = computed(
 
 const linkOptBarShow = computed(() => {
   return Boolean(
-    canvasStyleData.value.suspensionButtonAvailable && !inMobile.value && !mobileInPc.value
+    canvasStyleData.value.suspensionButtonAvailable &&
+      !inMobile.value &&
+      !mobileInPc.value &&
+      showPopBar.value
   )
 })
 
@@ -453,8 +480,9 @@ defineExpose({
         :style="getShapeItemShowStyle(item)"
         :show-position="showPosition"
         :search-count="curSearchCount"
-        :scale="mobileInPc ? 100 : scaleMin"
+        :scale="mobileInPc && isDashboard() ? 100 : scaleMin"
         :is-selector="props.isSelector"
+        :font-family="canvasStyleData.fontFamily || fontFamily"
         @userViewEnlargeOpen="userViewEnlargeOpen($event, item)"
         @datasetParamsInit="datasetParamsInit(item)"
         @onPointClick="onPointClick"

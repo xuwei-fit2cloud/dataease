@@ -45,6 +45,8 @@ import DragInfo from '@/components/visualization/common/DragInfo.vue'
 import { activeWatermarkCheckUser } from '@/components/watermark/watermark'
 import PopArea from '@/custom-component/pop-area/Component.vue'
 import DatasetParamsComponent from '@/components/visualization/DatasetParamsComponent.vue'
+import DeGrid from '@/components/data-visualization/DeGrid.vue'
+import DeGridScreen from '@/components/data-visualization/DeGridScreen.vue'
 
 const snapshotStore = snapshotStoreWithOut()
 const dvMainStore = dvMainStoreWithOut()
@@ -56,6 +58,10 @@ const { curComponent, dvInfo, editMode, tabMoveOutComponentId, canvasState } =
 const { editorMap, areaData } = storeToRefs(composeStore)
 const emits = defineEmits(['scrollCanvasToTop'])
 const props = defineProps({
+  themes: {
+    type: String,
+    default: 'dark'
+  },
   isEdit: {
     type: Boolean,
     default: true
@@ -166,9 +172,13 @@ const props = defineProps({
     type: Boolean,
     required: false,
     default: true
+  },
+  fontFamily: {
+    type: String,
+    required: false,
+    default: 'inherit'
   }
 })
-const userInfo = ref(null)
 
 const {
   baseWidth,
@@ -187,7 +197,8 @@ const {
   canvasId,
   canvasStyleData,
   componentData,
-  canvasViewInfo
+  canvasViewInfo,
+  themes
 } = toRefs(props)
 
 const editorX = ref(0)
@@ -275,6 +286,13 @@ const initWatermark = (waterDomId = 'editor-canvas-main') => {
   }
 }
 
+const matrixStyle = computed(() => {
+  return {
+    width: baseWidth.value,
+    height: baseHeight.value
+  }
+})
+
 const dragInfoShow = computed(() => {
   return (
     dvInfo.value.type === 'dashboard' &&
@@ -349,7 +367,7 @@ const coordinates = ref([]) //坐标点集合
 
 let lastTask = undefined
 let isOverlay = false //是否正在交换位置
-let moveTime = 200 //移动动画时间
+let moveTime = 100 //移动动画时间
 
 const itemMaxY = ref(0)
 let itemMaxX = 0
@@ -718,7 +736,7 @@ function addItemToPositionBox(item) {
           pb[j][i].el = item
         }
       } catch (e) {
-        console.error(e)
+        console.warn(e)
       }
     }
   }
@@ -754,7 +772,7 @@ function removeItemFromPositionBox(item) {
           pb[j][i].el = false
         }
       } catch (e) {
-        console.error(e)
+        console.warn(e)
       }
     }
   }
@@ -874,6 +892,11 @@ function removeItemById(componentId) {
         removeItem(index)
       }
     })
+    if (!isMainCanvas(canvasId.value)) {
+      nextTick(() => {
+        canvasInit()
+      })
+    }
   }
 }
 
@@ -1404,6 +1427,22 @@ const contextMenuShow = computed(() => {
 
 const markLineShow = computed(() => isMainCanvas(canvasId.value))
 
+const showGrid = computed(() => {
+  return (
+    Boolean(canvasStyleData.value.dashboard.showGrid) &&
+    isMainCanvas(canvasId.value) &&
+    isDashboard()
+  )
+})
+
+const showGridScreen = computed(() => {
+  return (
+    Boolean(canvasStyleData.value.dashboard.showGrid) &&
+    isMainCanvas(canvasId.value) &&
+    !isDashboard()
+  )
+})
+
 // 批量设置
 
 const dataVBatchOptAdaptor = () => {
@@ -1514,6 +1553,7 @@ defineExpose({
     :style="editStyle"
     @contextmenu="handleContextMenu"
   >
+    <slot name="canvasDragTips" />
     <drag-info v-if="dragInfoShow"></drag-info>
     <canvas-opt-bar
       v-if="dvInfo.type === 'dataV'"
@@ -1534,6 +1574,12 @@ defineExpose({
       :show-position="'popEdit'"
     ></PopArea>
     <!-- 网格线 -->
+    <de-grid v-if="showGrid" :matrix-style="matrixStyle" :themes="themes"></de-grid>
+    <de-grid-screen
+      v-if="showGridScreen"
+      :matrix-style="matrixStyle"
+      :themes="themes"
+    ></de-grid-screen>
     <drag-shadow
       v-if="infoBox && infoBox.moveItem && editMode !== 'preview'"
       :base-height="baseHeight"
@@ -1587,6 +1633,7 @@ defineExpose({
         :dv-info="dvInfo"
         :canvas-active="canvasActive"
         :show-position="'canvas'"
+        :font-family="fontFamily"
       />
       <component
         v-else-if="item.component.includes('Svg')"
@@ -1605,6 +1652,7 @@ defineExpose({
         :active="item.id === curComponentId"
         :canvas-active="canvasActive"
         :show-position="'edit'"
+        :font-family="fontFamily"
       />
       <component
         v-else
@@ -1623,6 +1671,7 @@ defineExpose({
         :active="item.id === curComponentId"
         :canvas-active="canvasActive"
         :show-position="'edit'"
+        :font-family="fontFamily"
       />
     </Shape>
     <!-- 右击菜单 -->

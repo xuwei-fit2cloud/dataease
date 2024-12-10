@@ -10,8 +10,11 @@ import {
   setUpSingleDimensionSeriesColor
 } from '@/views/chart/components/js/util'
 import {
+  configPlotTooltipEvent,
   getPadding,
-  getTooltipSeriesTotalMap
+  getTooltipContainer,
+  getTooltipSeriesTotalMap,
+  TOOLTIP_TPL
 } from '@/views/chart/components/js/panel/common/common_antv'
 import { valueFormatter } from '@/views/chart/components/js/formatter'
 import {
@@ -118,6 +121,7 @@ export class Pie extends G2PlotChartView<PieOptions, G2Pie> {
     const { Pie: G2Pie } = await import('@antv/g2plot/esm/plots/pie')
     const newChart = new G2Pie(container, options)
     newChart.on('interval:click', action)
+    configPlotTooltipEvent(chart, newChart)
     return newChart
   }
 
@@ -237,7 +241,10 @@ export class Pie extends G2PlotChartView<PieOptions, G2Pie> {
           }
         })
         return result
-      }
+      },
+      container: getTooltipContainer(`tooltip-${chart.id}`),
+      itemTpl: TOOLTIP_TPL,
+      enterable: true
     }
     return {
       ...options,

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import {
   computed,
+  CSSProperties,
   inject,
   nextTick,
   onBeforeUnmount,
@@ -22,13 +23,14 @@ import { storeToRefs } from 'pinia'
 import { S2ChartView } from '@/views/chart/components/js/panel/types/impl/s2'
 import { ElPagination } from 'element-plus-secondary'
 import ChartError from '@/views/chart/components/views/components/ChartError.vue'
-import { defaultsDeep, cloneDeep } from 'lodash-es'
+import { defaultsDeep, cloneDeep, debounce } from 'lodash-es'
 import { BASE_VIEW_CONFIG } from '../../editor/util/chart'
 import { customAttrTrans, customStyleTrans, recursionTransObj } from '@/utils/canvasStyle'
-import { deepCopy } from '@/utils/utils'
+import { deepCopy, isISOMobile, isMobile } from '@/utils/utils'
 import { useEmitt } from '@/hooks/web/useEmitt'
-import { trackBarStyleCheck } from '@/utils/canvasUtils'
+import { isDashboard, trackBarStyleCheck } from '@/utils/canvasUtils'
 import { type SpreadSheet } from '@antv/s2'
+import { parseJson } from '../../js/util'
 
 const dvMainStore = dvMainStoreWithOut()
 const {
@@ -82,10 +84,16 @@ const props = defineProps({
     type: String,
     required: false,
     default: 'common'
+  },
+  fontFamily: {
+    type: String,
+    required: false,
+    default: 'inherit'
   }
 })
 
 const emit = defineEmits(['onPointClick', 'onChartClick', 'onDrillFilters', 'onJumpClick'])
+const dataVMobile = !isDashboard() && isMobile()
 
 const { view, showPosition, scale, terminal, drillLength, suffixId } = toRefs(props)
 
@@ -165,27 +173,41 @@ const renderChartFromDialog = (viewInfo: Chart, chartDataInfo) => {
   chartData.value = chartDataInfo
   renderChart(viewInfo, false)
 }
+// 处理存量图表的默认值
+const handleDefaultVal = (chart: Chart) => {
+  const customAttr = parseJson(chart.customAttr)
+  // 明细表默认合并单元格，存量的不合并
+  if (customAttr.tableCell.mergeCells === undefined) {
+    customAttr.tableCell.mergeCells = false
+  }
+}
 const renderChart = (viewInfo: Chart, resetPageInfo: boolean) => {
   if (!viewInfo) {
     return
   }
+  handleDefaultVal(viewInfo)
   // view 为引用对象 需要存库 view.data 直接赋值会导致保存不必要的数据
   actualChart = deepCopy({
     ...defaultsDeep(viewInfo, cloneDeep(BASE_VIEW_CONFIG)),
-    data: chartData.value
+    data: chartData.value,
+    fontFamily: props.fontFamily
   } as ChartObj)
 
   recursionTransObj(customAttrTrans, actualChart.customAttr, scale.value, terminal.value)
   recursionTransObj(customStyleTrans, actualChart.customStyle, scale.value, terminal.value)
 
+  setupPage(actualChart, resetPageInfo)
+  nextTick(() => debounceRender(resetPageInfo))
+}
+
+const debounceRender = debounce(resetPageInfo => {
   myChart?.facet?.timer?.stop()
   myChart?.facet?.cancelScrollFrame()
   myChart?.destroy()
-  myChart = null
-  setupPage(actualChart, resetPageInfo)
+  myChart?.getCanvasElement()?.remove()
   const chartView = chartViewManager.getChartView(
-    viewInfo.render,
-    viewInfo.type
+    actualChart.render,
+    actualChart.type
   ) as S2ChartView<any>
   myChart = chartView.drawChart({
     container: containerId,
@@ -196,9 +218,9 @@ const renderChart = (viewInfo: Chart, resetPageInfo: boolean) => {
     resizeAction
   })
   myChart?.render()
-  dvMainStore.setViewInstanceInfo(viewInfo.id, myChart)
+  dvMainStore.setViewInstanceInfo(actualChart.id, myChart)
   initScroll()
-}
+}, 500)
 
 const setupPage = (chart: ChartObj, resetPageInfo?: boolean) => {
   const customAttr = chart.customAttr
@@ -338,8 +360,14 @@ const action = param => {
       top: param.y + 10
     }
     trackBarStyleCheck(props.element, barStyleTemp, props.scale, trackMenu.value.length)
-    state.trackBarStyle.left = barStyleTemp.left + 'px'
-    state.trackBarStyle.top = barStyleTemp.top + 'px'
+    if (dataVMobile) {
+      state.trackBarStyle.left = barStyleTemp.left + 40 + 'px'
+      state.trackBarStyle.top = barStyleTemp.top + 70 + 'px'
+    } else {
+      state.trackBarStyle.left = barStyleTemp.left + 'px'
+      state.trackBarStyle.top = barStyleTemp.top + 'px'
+    }
+
     viewTrack.value.trackButtonClick()
   }
 }
@@ -563,9 +591,13 @@ const resize = (width, height) => {
     clearTimeout(timer)
   }
   timer = setTimeout(() => {
-    myChart?.changeSheetSize(width, height)
-    myChart?.facet.timer?.stop()
-    myChart?.render()
+    if (!myChart?.facet) {
+      debounceRender(false)
+    } else {
+      myChart?.facet?.timer?.stop()
+      myChart?.changeSheetSize(width, height)
+      myChart?.render()
+    }
     initScroll()
   }, 500)
 }
@@ -587,7 +619,7 @@ onMounted(() => {
     }
     preSize[0] = size.inlineSize
     preSize[1] = size.blockSize
-    resize(size.inlineSize, size.blockSize)
+    resize(size.inlineSize, Math.round(size.blockSize))
   })
 
   resizeObserver.observe(document.getElementById(containerId))
@@ -604,7 +636,18 @@ onBeforeUnmount(() => {
 })
 
 const autoStyle = computed(() => {
-  return { zoom: scale.value }
+  if (isISOMobile()) {
+    return {
+      position: 'absolute',
+      height: 100 / scale.value + '%!important',
+      width: 100 / scale.value + '%!important',
+      left: 50 * (1 - 1 / scale.value) + '%', // 放大余量 除以 2
+      top: 50 * (1 - 1 / scale.value) + '%', // 放大余量 除以 2
+      transform: 'scale(' + scale.value + ') translateZ(0)'
+    } as CSSProperties
+  } else {
+    return { zoom: scale.value }
+  }
 })
 
 const autoHeightStyle = computed(() => {
@@ -631,9 +674,11 @@ const tablePageClass = computed(() => {
     <view-track-bar
       ref="viewTrack"
       :track-menu="trackMenu"
+      :font-family="fontFamily"
       class="track-bar"
       :style="state.trackBarStyle"
       @trackClick="trackClick"
+      :is-data-v-mobile="dataVMobile"
       @mousemove="mouseMove"
     />
     <div v-if="!isError" class="canvas-content">

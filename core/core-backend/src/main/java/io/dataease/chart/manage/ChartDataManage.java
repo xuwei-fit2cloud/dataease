@@ -233,6 +233,12 @@ public class ChartDataManage {
             filters.addAll(chartExtRequest.getOuterParamsFilters());
         }
 
+        // web参数条件
+        if (ObjectUtils.isNotEmpty(chartExtRequest.getOuterParamsFilters())) {
+            filters.addAll(chartExtRequest.getWebParamsFilters());
+        }
+
+
         //联动过滤条件和外部参数过滤条件全部加上
         if (ObjectUtils.isNotEmpty(filters)) {
             for (ChartExtFilterDTO request : filters) {
@@ -316,6 +322,11 @@ public class ChartDataManage {
                                 dillAxis.add(nextDrillField);
                                 fields.add(nextDrillField.getId());
                             } else {
+                                Optional<ChartViewFieldDTO> axis = xAxis.stream().filter(x -> Objects.equals(x.getId(), nextDrillField.getId())).findFirst();
+                                axis.ifPresent(field -> {
+                                    field.setSort(nextDrillField.getSort());
+                                    field.setCustomSort(nextDrillField.getCustomSort());
+                                });
                                 dillAxis.add(nextDrillField);
                             }
                         }
@@ -330,6 +341,7 @@ public class ChartDataManage {
         extFilterList = extFilterList.stream().peek(ele -> {
             if (ObjectUtils.isNotEmpty(ele.getValue())) {
                 List<String> collect = ele.getValue().stream().map(SQLUtils::transKeyword).collect(Collectors.toList());
+                ele.setOriginValue(ele.getValue());
                 ele.setValue(collect);
             }
         }).collect(Collectors.toList());

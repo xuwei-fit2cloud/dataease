@@ -2,9 +2,18 @@ import type { WaterfallOptions, Waterfall as G2Waterfall } from '@antv/g2plot/es
 import { G2PlotChartView, G2PlotDrawOptions } from '../../types/impl/g2plot'
 import { flow, hexColorToRGBA, parseJson } from '../../../util'
 import { valueFormatter } from '../../../formatter'
-import { getPadding, getTooltipSeriesTotalMap, setGradientColor } from '../../common/common_antv'
+import {
+  configAxisLabelLengthLimit,
+  configPlotTooltipEvent,
+  getPadding,
+  getTooltipContainer,
+  getTooltipSeriesTotalMap,
+  setGradientColor,
+  TOOLTIP_TPL
+} from '../../common/common_antv'
 import { isEmpty } from 'lodash-es'
 import { useI18n } from '@/hooks/web/useI18n'
+import { DEFAULT_BASIC_STYLE } from '@/views/chart/components/editor/util/chart'
 const { t } = useI18n()
 
 /**
@@ -25,7 +34,7 @@ export class Waterfall extends G2PlotChartView<WaterfallOptions, G2Waterfall> {
   propertyInner: EditorPropertyInner = {
     'background-overall-component': ['all'],
     'border-style': ['all'],
-    'basic-style-selector': ['colors', 'alpha', 'gradient'],
+    'basic-style-selector': ['colors', 'alpha', 'gradient', 'columnWidthRatio'],
     'label-selector': ['fontSize', 'color', 'vPosition', 'labelFormatter'],
     'tooltip-selector': ['fontSize', 'color', 'backgroundColor', 'seriesTooltipFormatter', 'show'],
     'title-selector': [
@@ -60,7 +69,8 @@ export class Waterfall extends G2PlotChartView<WaterfallOptions, G2Waterfall> {
       'splitLine',
       'axisForm',
       'axisLabel',
-      'axisLabelFormatter'
+      'axisLabelFormatter',
+      'showLengthLimit'
     ]
   }
   axis: AxisType[] = ['xAxis', 'yAxis', 'filter', 'drill', 'extLabel', 'extTooltip']
@@ -92,6 +102,8 @@ export class Waterfall extends G2PlotChartView<WaterfallOptions, G2Waterfall> {
     const { Waterfall: G2Waterfall } = await import('@antv/g2plot/esm/plots/waterfall')
     const newChart = new G2Waterfall(container, options)
     newChart.on('interval:click', action)
+    configPlotTooltipEvent(chart, newChart)
+    configAxisLabelLengthLimit(chart, newChart)
     return newChart
   }
 
@@ -126,6 +138,20 @@ export class Waterfall extends G2PlotChartView<WaterfallOptions, G2Waterfall> {
     const customAttr = parseJson(chart.customAttr)
     const { colors, gradient, alpha } = customAttr.basicStyle
     const [risingColorRgba, fallingColorRgba, totalColorRgba] = colors
+
+    let columnWidthRatio
+    const _v = customAttr.basicStyle.columnWidthRatio ?? DEFAULT_BASIC_STYLE.columnWidthRatio
+    if (_v >= 1 && _v <= 100) {
+      columnWidthRatio = _v / 100.0
+    } else if (_v < 1) {
+      columnWidthRatio = 1 / 100.0
+    } else if (_v > 100) {
+      columnWidthRatio = 1
+    }
+    if (columnWidthRatio) {
+      options.columnWidthRatio = columnWidthRatio
+    }
+
     return {
       ...options,
       total: {
@@ -224,7 +250,10 @@ export class Waterfall extends G2PlotChartView<WaterfallOptions, G2Waterfall> {
           }
         })
         return result
-      }
+      },
+      container: getTooltipContainer(`tooltip-${chart.id}`),
+      itemTpl: TOOLTIP_TPL,
+      enterable: true
     }
     return {
       ...options,

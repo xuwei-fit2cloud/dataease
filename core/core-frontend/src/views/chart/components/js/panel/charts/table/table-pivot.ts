@@ -20,7 +20,7 @@ import { S2ChartView, S2DrawOptions } from '../../types/impl/s2'
 import { TABLE_EDITOR_PROPERTY_INNER } from './common'
 import { useI18n } from '@/hooks/web/useI18n'
 import { isNumber, keys, maxBy, merge, minBy, some, isEmpty, get } from 'lodash-es'
-import { copyContent } from '../../common/common_table'
+import { copyContent, CustomDataCell } from '../../common/common_table'
 import Decimal from 'decimal.js'
 
 type DataItem = Record<string, any>
@@ -213,6 +213,21 @@ export class TablePivot extends S2ChartView<PivotSheet> {
       }
       sortParams.push(sort)
     }
+    //列维度为空，行排序按照指标列来排序，取第一个有排序设置的指标
+    if (!columnFields?.length) {
+      const sortField = valueFields?.find(v => !['none', 'custom_sort'].includes(v.sort))
+      if (sortField) {
+        const sort = {
+          sortFieldId: r[0],
+          sortMethod: sortField.sort.toUpperCase(),
+          sortByMeasure: TOTAL_VALUE,
+          query: {
+            [EXTRA_FIELD]: sortField.dataeaseName
+          }
+        }
+        sortParams.push(sort)
+      }
+    }
     // 自定义总计小计
     const totals = [
       tableTotal.row.calcTotals,
@@ -224,6 +239,10 @@ export class TablePivot extends S2ChartView<PivotSheet> {
       row: chart.xAxis,
       col: chart.xAxisExt,
       quota: chart.yAxis
+    }
+    //树形模式下，列维度为空，行小计会变成列总计，特殊处理下
+    if (basicStyle.tableLayoutMode === 'tree' && !chart.xAxisExt?.length) {
+      tableTotal.col.calcTotals = tableTotal.row.calcSubTotals
     }
     totals.forEach(total => {
       if (total.cfg?.length) {
@@ -262,6 +281,9 @@ export class TablePivot extends S2ChartView<PivotSheet> {
       dataSet: spreadSheet => new CustomPivotDataset(spreadSheet),
       interaction: {
         hoverHighlight: !(basicStyle.showHoverStyle === false)
+      },
+      dataCell: meta => {
+        return new CustomDataCell(meta, meta.spreadsheet)
       }
     }
     // options
@@ -350,7 +372,10 @@ export class TablePivot extends S2ChartView<PivotSheet> {
     if (!isAlphaColor(tableHeaderBgColor)) {
       tableHeaderBgColor = hexColorToRGBA(tableHeaderBgColor, basicStyle.alpha)
     }
-    const tableBorderColor = hexColorToRGBA(basicStyle.tableBorderColor, basicStyle.alpha)
+    let tableBorderColor = basicStyle.tableBorderColor
+    if (!isAlphaColor(tableBorderColor)) {
+      tableBorderColor = hexColorToRGBA(tableBorderColor, basicStyle.alpha)
+    }
     const tableHeaderFontColor = hexColorToRGBA(tableHeader.tableHeaderFontColor, basicStyle.alpha)
     const fontStyle = tableHeader.isItalic ? 'italic' : 'normal'
     const fontWeight = tableHeader.isBolder === false ? 'normal' : 'bold'
@@ -527,7 +552,7 @@ function getCustomCalcResult(query, axisMap, chart: ChartObj, status: TotalStatu
     const rowPath = getTreePath(query, row)
     const colPath = getTreePath(query, col)
     const path = [...rowPath, ...colPath]
-    const { data } = colSubTotal?.[subLevel]
+    const data = colSubTotal?.[subLevel]?.data
     let val
     if (path.length && data) {
       path.push(quotaField)
@@ -557,7 +582,7 @@ function getCustomCalcResult(query, axisMap, chart: ChartObj, status: TotalStatu
     const colPath = getTreePath(query, col)
     const rowPath = getTreePath(query, row)
     const path = [...colPath, ...rowPath]
-    const { data } = rowSubTotal?.[rowLevel]
+    const data = rowSubTotal?.[rowLevel]?.data
     let val
     if (path.length && rowSubTotal) {
       path.push(quotaField)
@@ -596,7 +621,7 @@ function getCustomCalcResult(query, axisMap, chart: ChartObj, status: TotalStatu
     const { rowSubInColSub } = customCalc
     const rowSubLevel = getSubLevel(query, row)
     const colSubLevel = getSubLevel(query, col)
-    const { data } = rowSubInColSub?.[rowSubLevel]?.[colSubLevel]
+    const data = rowSubInColSub?.[rowSubLevel]?.[colSubLevel]?.data
     const rowPath = getTreePath(query, row)
     const colPath = getTreePath(query, col)
     const path = [...rowPath, ...colPath]

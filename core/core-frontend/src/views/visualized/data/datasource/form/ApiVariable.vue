@@ -139,7 +139,7 @@ const timeFunLists = [
     <span v-if="description" class="kv-description">
       {{ description }}
     </span>
-    <draggable tag="div" :list="parameters" handle=".handle">
+    <draggable class="draggable-content_api" tag="div" :list="parameters" handle=".handle">
       <template #item="{ element, index }">
         <div :key="index" style="margin-bottom: 16px">
           <el-row :gutter="8">
@@ -249,11 +249,14 @@ const timeFunLists = [
               />
             </el-col>
             <el-col :span="1">
-              <el-button text :disabled="isDisable() || isReadOnly" @click="remove(index)">
+              <el-button
+                class="api-variable_del"
+                text
+                :disabled="isDisable() || isReadOnly"
+                @click="remove(index)"
+              >
                 <template #icon>
-                  <Icon name="icon_delete-trash_outlined"
-                    ><icon_deleteTrash_outlined class="svg-icon"
-                  /></Icon>
+                  <Icon><icon_deleteTrash_outlined class="svg-icon" /></Icon>
                 </template>
               </el-button>
             </el-col>
@@ -262,7 +265,7 @@ const timeFunLists = [
       </template>
     </draggable>
 
-    <el-button @click="change" text>
+    <el-button style="margin-top: 14px" @click="change" text>
       <template #icon>
         <icon name="icon_add_outlined"><icon_add_outlined class="svg-icon" /></icon>
       </template>
@@ -274,12 +277,32 @@ const timeFunLists = [
 <style lang="less" scoped>
 .api-variable {
   & > .ed-input,
-  .ed-autocomplete {
+  :deep(.ed-autocomplete) {
     width: 100%;
   }
   .drag {
     margin-top: 10px;
     cursor: pointer;
+  }
+  :deep(.draggable-content_api) > :last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .api-variable_del {
+    color: #646a73;
+    :deep(.ed-icon) {
+      font-size: 16px;
+    }
+
+    &:hover {
+      background: rgba(31, 35, 41, 0.1) !important;
+    }
+    &:focus {
+      background: rgba(31, 35, 41, 0.1) !important;
+    }
+    &:active {
+      background: rgba(31, 35, 41, 0.2) !important;
+    }
   }
 }
 .kv-description {

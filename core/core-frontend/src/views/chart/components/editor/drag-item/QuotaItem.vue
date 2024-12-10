@@ -336,11 +336,21 @@ onMounted(() => {
             ></Icon>
           </el-icon>
         </span>
-        <el-tooltip
-          :effect="toolTip"
-          placement="top"
-          :content="item.chartShowName ? item.chartShowName : item.name"
-        >
+        <el-tooltip :effect="toolTip" placement="top">
+          <template #content>
+            <table>
+              <tr>
+                <td>{{ t('dataset.field_origin_name') }}</td>
+                <td>:</td>
+                <td>{{ item.name }}</td>
+              </tr>
+              <tr>
+                <td>{{ t('chart.show_name') }}</td>
+                <td>:</td>
+                <td>{{ item.chartShowName ? item.chartShowName : item.name }}</td>
+              </tr>
+            </table>
+          </template>
           <span class="item-span-style">
             <span class="item-name">{{ item.chartShowName ? item.chartShowName : item.name }}</span>
             <span v-if="item.summary !== ''" class="item-right-summary">

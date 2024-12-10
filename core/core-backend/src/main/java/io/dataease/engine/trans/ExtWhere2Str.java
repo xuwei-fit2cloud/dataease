@@ -147,19 +147,59 @@ public class ExtWhere2Str {
                     if (value.contains(SQLConstants.EMPTY_SIGN)) {
                         whereValue = "('" + StringUtils.join(value, "','") + "', '')" + " or " + whereName + " is null ";
                     } else {
-                        if (StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NVARCHAR")
-                                || StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NCHAR")) {
-                            whereValue = "(" + value.stream().map(str -> "'" + SQLConstants.MSSQL_N_PREFIX + str + "'").collect(Collectors.joining(",")) + ")";
+                        // tree的情况需额外处理
+                        if (request.getIsTree()) {
+                            List<DatasetTableFieldDTO> datasetTableFieldList = request.getDatasetTableFieldList();
+                            boolean hasN = false;
+                            for (DatasetTableFieldDTO dto : datasetTableFieldList) {
+                                if (StringUtils.containsIgnoreCase(dto.getType(), "NVARCHAR")
+                                        || StringUtils.containsIgnoreCase(dto.getType(), "NCHAR")) {
+                                    hasN = true;
+                                    break;
+                                }
+                            }
+                            if (hasN) {
+                                whereValue = "(" + value.stream().map(str -> "'" + SQLConstants.MSSQL_N_PREFIX + str + "'").collect(Collectors.joining(",")) + ")";
+                            } else {
+                                whereValue = "('" + StringUtils.join(value, "','") + "')";
+                            }
                         } else {
-                            whereValue = "('" + StringUtils.join(value, "','") + "')";
+                            if (StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NVARCHAR")
+                                    || StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NCHAR")) {
+                                whereValue = "(" + value.stream().map(str -> "'" + SQLConstants.MSSQL_N_PREFIX + str + "'").collect(Collectors.joining(",")) + ")";
+                            } else {
+                                if (request.getDatasetTableField().getDeType() == 2 || request.getDatasetTableField().getDeType() == 3) {
+                                    whereValue = "(" + StringUtils.join(value, ",") + ")";
+                                } else {
+                                    whereValue = "('" + StringUtils.join(value, "','") + "')";
+                                }
+                            }
                         }
                     }
                 } else if (StringUtils.containsIgnoreCase(request.getOperator(), "like")) {
-                    if (StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NVARCHAR")
-                            || StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NCHAR")) {
-                        whereValue = "'" + SQLConstants.MSSQL_N_PREFIX + "%" + value.get(0) + "%'";
+                    // tree的情况需额外处理
+                    if (request.getIsTree()) {
+                        List<DatasetTableFieldDTO> datasetTableFieldList = request.getDatasetTableFieldList();
+                        boolean hasN = false;
+                        for (DatasetTableFieldDTO dto : datasetTableFieldList) {
+                            if (StringUtils.containsIgnoreCase(dto.getType(), "NVARCHAR")
+                                    || StringUtils.containsIgnoreCase(dto.getType(), "NCHAR")) {
+                                hasN = true;
+                                break;
+                            }
+                        }
+                        if (hasN) {
+                            whereValue = "'" + SQLConstants.MSSQL_N_PREFIX + "%" + value.get(0) + "%'";
+                        } else {
+                            whereValue = "'%" + value.get(0) + "%'";
+                        }
                     } else {
-                        whereValue = "'%" + value.get(0) + "%'";
+                        if (StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NVARCHAR")
+                                || StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NCHAR")) {
+                            whereValue = "'" + SQLConstants.MSSQL_N_PREFIX + "%" + value.get(0) + "%'";
+                        } else {
+                            whereValue = "'%" + value.get(0) + "%'";
+                        }
                     }
                 } else if (StringUtils.containsIgnoreCase(request.getOperator(), "between")) {
                     if (request.getDatasetTableField().getDeType() == 1) {
@@ -176,7 +216,11 @@ public class ExtWhere2Str {
                                 whereName = String.format(SQLConstants.UNIX_TIMESTAMP, whereName);
                                 whereValue = String.format(SQLConstants.WHERE_BETWEEN, Long.parseLong(value.get(0)), Long.parseLong(value.get(1)));
                             } else {
-                                whereValue = String.format(SQLConstants.WHERE_BETWEEN, Utils.transLong2Str(Long.parseLong(value.get(0))), Utils.transLong2Str(Long.parseLong(value.get(1))));
+                                if (StringUtils.equalsIgnoreCase(request.getDatasetTableField().getType(), "date")) {
+                                    whereValue = String.format(SQLConstants.WHERE_BETWEEN, Utils.transLong2StrShort(Long.parseLong(value.get(0))), Utils.transLong2StrShort(Long.parseLong(value.get(1))));
+                                } else {
+                                    whereValue = String.format(SQLConstants.WHERE_BETWEEN, Utils.transLong2Str(Long.parseLong(value.get(0))), Utils.transLong2Str(Long.parseLong(value.get(1))));
+                                }
                             }
                         }
                     } else if (request.getDatasetTableField().getDeType() == 2
@@ -191,11 +235,29 @@ public class ExtWhere2Str {
                     if (StringUtils.equals(value.get(0), SQLConstants.EMPTY_SIGN)) {
                         whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE, "") + " or " + whereName + " is null ";
                     } else {
-                        if (StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NVARCHAR")
-                                || StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NCHAR")) {
-                            whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE_CH, value.get(0));
+                        // tree的情况需额外处理
+                        if (request.getIsTree()) {
+                            List<DatasetTableFieldDTO> datasetTableFieldList = request.getDatasetTableFieldList();
+                            boolean hasN = false;
+                            for (DatasetTableFieldDTO dto : datasetTableFieldList) {
+                                if (StringUtils.containsIgnoreCase(dto.getType(), "NVARCHAR")
+                                        || StringUtils.containsIgnoreCase(dto.getType(), "NCHAR")) {
+                                    hasN = true;
+                                    break;
+                                }
+                            }
+                            if (hasN) {
+                                whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE_CH, value.get(0));
+                            } else {
+                                whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE, value.get(0));
+                            }
                         } else {
-                            whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE, value.get(0));
+                            if (StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NVARCHAR")
+                                    || StringUtils.containsIgnoreCase(request.getDatasetTableField().getType(), "NCHAR")) {
+                                whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE_CH, value.get(0));
+                            } else {
+                                whereValue = String.format(SQLConstants.WHERE_VALUE_VALUE, value.get(0));
+                            }
                         }
                     }
                 }

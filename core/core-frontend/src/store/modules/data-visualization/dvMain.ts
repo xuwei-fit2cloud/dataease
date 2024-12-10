@@ -15,7 +15,6 @@ import {
 import { useEmitt } from '@/hooks/web/useEmitt'
 import chartViewManager from '@/views/chart/components/js/panel'
 import {
-  COMMON_COMPONENT_BACKGROUND_BASE,
   COMMON_COMPONENT_BACKGROUND_DARK,
   COMMON_COMPONENT_BACKGROUND_LIGHT,
   defaultStyleValue,
@@ -25,6 +24,8 @@ import { get, set } from 'lodash-es'
 import { viewFieldTimeTrans } from '@/utils/viewUtils'
 import { useAppearanceStoreWithOut } from '@/store/modules/appearance'
 import { ElMessage } from 'element-plus-secondary'
+import { useI18n } from '@/hooks/web/useI18n'
+const { t } = useI18n()
 
 export const dvMainStore = defineStore('dataVisualization', {
   state: () => {
@@ -59,6 +60,7 @@ export const dvMainStore = defineStore('dataVisualization', {
       isInEditor: false, // 是否在编辑器中，用于判断复制、粘贴组件时是否生效，如果在编辑器外，则无视这些操作
       componentData: [], // 画布组件数据
       curComponent: null,
+      curTabName: null, // 当前选中的tabName 大屏图层区域使用
       curComponentIndex: null,
       curCanvasScaleMap: {},
       // 预览仪表板缩放信息
@@ -189,7 +191,8 @@ export const dvMainStore = defineStore('dataVisualization', {
       // 基础网格信息
       baseCellInfo: {},
       dataPrepareState: false, //数据准备状态
-      multiplexingStyleAdapt: true //复用样式跟随主题
+      multiplexingStyleAdapt: true, //复用样式跟随主题
+      mainScrollTop: 0 //主画布运动量
     }
   },
   actions: {
@@ -263,7 +266,11 @@ export const dvMainStore = defineStore('dataVisualization', {
     setCurComponentMobileConfig(component) {
       this.curComponent = component
     },
+    setCurTabName(val) {
+      this.curTabName = val
+    },
     setCurComponent({ component, index }) {
+      this.setCurTabName(null)
       if (!component && this.curComponent) {
         this.curComponent['editing'] = false
         this.curComponent['resizing'] = false
@@ -466,7 +473,7 @@ export const dvMainStore = defineStore('dataVisualization', {
         const newView = {
           ...JSON.parse(JSON.stringify(BASE_VIEW_CONFIG)),
           id: component.id,
-          title: '查询组件',
+          title: t('visualization.query_component'),
           type: component.innerType,
           customStyle: {
             component: {
@@ -635,7 +642,11 @@ export const dvMainStore = defineStore('dataVisualization', {
       if (this.batchOptComponentType !== 'UserView') {
         this.batchOptComponentInfo = {
           collapseName: 'background',
-          commonBackground: deepCopy(COMMON_COMPONENT_BACKGROUND_BASE),
+          commonBackground: deepCopy(
+            this.curOriginThemes === 'light'
+              ? COMMON_COMPONENT_BACKGROUND_LIGHT
+              : COMMON_COMPONENT_BACKGROUND_DARK
+          ),
           style: {}
         }
 
@@ -670,7 +681,11 @@ export const dvMainStore = defineStore('dataVisualization', {
         } else {
           this.batchOptComponentInfo = {
             collapseName: 'background',
-            commonBackground: deepCopy(COMMON_COMPONENT_BACKGROUND_BASE),
+            commonBackground: deepCopy(
+              this.curOriginThemes === 'light'
+                ? COMMON_COMPONENT_BACKGROUND_LIGHT
+                : COMMON_COMPONENT_BACKGROUND_DARK
+            ),
             style: {}
           }
           this.mixPropertiesInner['common-style']?.forEach(styleKey => {
@@ -1000,6 +1015,29 @@ export const dvMainStore = defineStore('dataVisualization', {
         useEmitt().emitter.emit('query-data-' + viewId)
       })
     },
+    addWebParamsFilter(params, curComponentData = this.componentData) {
+      if (params) {
+        for (let index = 0; index < curComponentData.length; index++) {
+          const element = curComponentData[index]
+          if (['UserView'].includes(element.component)) {
+            this.trackWebFilterCursor(element, params)
+            this.componentData[index] = element
+          } else if (element.component === 'Group') {
+            element.propValue.forEach((groupItem, index) => {
+              this.trackWebFilterCursor(groupItem, params)
+              element.propValue[index] = groupItem
+            })
+          } else if (element.component === 'DeTabs') {
+            element.propValue.forEach(tabItem => {
+              tabItem.componentData.forEach((tabComponent, index) => {
+                this.trackWebFilterCursor(tabComponent, params)
+                tabItem.componentData[index] = tabComponent
+              })
+            })
+          }
+        }
+      }
+    },
     // 添加外部参数的过滤条件
     addOuterParamsFilter(paramsPre, curComponentData = this.componentData, source = 'inner') {
       // params 结构 {key1:value1,key2:value2}
@@ -1071,6 +1109,13 @@ export const dvMainStore = defineStore('dataVisualization', {
         }
       }
     },
+    trackWebFilterCursor(element, params) {
+      if (params[element.id]) {
+        const currentFilters = []
+        currentFilters.push(params[element.id])
+        element['webParamsFilters'] = currentFilters
+      }
+    },
     trackOuterFilterCursor(element, params, preActiveComponentIds, trackInfo, source) {
       // 弹窗区域禁用时 在弹窗区域的组件不生效
       if (
@@ -1106,26 +1151,30 @@ export const dvMainStore = defineStore('dataVisualization', {
         targetInfoList.forEach(targetInfo => {
           const targetInfoArray = targetInfo.split('#')
           const targetViewId = targetInfoArray[0] // 目标图表
+          // DE_EMPTY 为清空条件标志
           if (element.component === 'UserView' && element.id === targetViewId) {
-            // 如果目标图表 和 当前循环组件id相等 则进行条件增减
-            const targetFieldId = targetInfoArray[1] // 目标图表列ID
-            const condition = {
-              fieldId: targetFieldId,
-              operator: operator,
-              value: paramValue,
-              viewIds: [targetViewId]
-            }
-            let j = currentFilters.length
-            while (j--) {
-              const filter = currentFilters[j]
-              // 兼容性准备 viewIds 只会存放一个值
-              if (targetFieldId === filter.fieldId && filter.viewIds.includes(targetViewId)) {
-                currentFilters.splice(j, 1)
+            if ('DE_EMPTY' !== paramValueStr) {
+              // 如果目标图表 和 当前循环组件id相等 则进行条件增减
+              const targetFieldId = targetInfoArray[1] // 目标图表列ID
+              const condition = {
+                fieldId: targetFieldId,
+                operator: operator,
+                value: paramValue,
+                viewIds: [targetViewId]
               }
+              let j = currentFilters.length
+              while (j--) {
+                const filter = currentFilters[j]
+                // 兼容性准备 viewIds 只会存放一个值
+                if (targetFieldId === filter.fieldId && filter.viewIds.includes(targetViewId)) {
+                  currentFilters.splice(j, 1)
+                }
+              }
+              // 不存在该条件 且 条件有效 直接保存该条件
+              // !filterExist && vValid && currentFilters.push(condition)
+
+              currentFilters.push(condition)
             }
-            // 不存在该条件 且 条件有效 直接保存该条件
-            // !filterExist && vValid && currentFilters.push(condition)
-            currentFilters.push(condition)
             preActiveComponentIds.push(element.id)
           }
           if (element.component === 'VQuery') {
@@ -1144,25 +1193,33 @@ export const dvMainStore = defineStore('dataVisualization', {
                   // 0 文本类型 1 数字类型
                   if (filterItem.multiple) {
                     // multiple === true 多选
-                    filterItem.selectValue = queryParams
-                    filterItem.defaultValue = queryParams
+                    filterItem['selectValue'] = queryParams
+                    filterItem['defaultValue'] = queryParams
                   } else {
                     // 单选
-                    filterItem.selectValue = queryParams[0]
-                    filterItem.defaultValue = queryParams[0]
+                    filterItem['selectValue'] = queryParams[0]
+                    filterItem['defaultValue'] = queryParams[0]
                   }
+                  filterItem['defaultMapValue'] = queryParams
+                  filterItem['mapValue'] = queryParams
                 } else if (filterItem.displayType === '1') {
                   // 1 时间类型
-                  filterItem.selectValue = queryParams[0]
-                  filterItem.defaultValue = queryParams[0]
+                  filterItem['selectValue'] = queryParams[0]
+                  filterItem['defaultValue'] = queryParams[0]
                 } else if (filterItem.displayType === '7') {
                   // 7 时间范围类型
-                  filterItem.selectValue = queryParams
-                  filterItem.defaultValue = queryParams
+                  filterItem['selectValue'] = queryParams
+                  filterItem['defaultValue'] = queryParams
                 } else if (filterItem.displayType === '8') {
                   // 8 文本搜索
-                  filterItem.conditionValueF = parmaValueSource + ''
-                  filterItem.defaultConditionValueF = parmaValueSource + ''
+                  filterItem['conditionValueF'] = parmaValueSource + ''
+                  filterItem['defaultConditionValueF'] = parmaValueSource + ''
+                }
+                if ('DE_EMPTY' === paramValueStr) {
+                  filterItem['selectValue'] = null
+                  filterItem['defaultValue'] = null
+                  filterItem['conditionValueF'] = null
+                  filterItem['defaultConditionValueF'] = null
                 }
               }
             })
@@ -1242,25 +1299,33 @@ export const dvMainStore = defineStore('dataVisualization', {
                   // 0 文本类型 1 数字类型
                   if (filterItem.multiple) {
                     // multiple === true 多选
-                    filterItem.selectValue = queryParams
-                    filterItem.defaultValue = queryParams
+                    filterItem['selectValue'] = queryParams
+                    filterItem['defaultValue'] = queryParams
                   } else {
                     // 单选
-                    filterItem.selectValue = queryParams[0]
-                    filterItem.defaultValue = queryParams[0]
+                    filterItem['selectValue'] = queryParams[0]
+                    filterItem['defaultValue'] = queryParams[0]
                   }
+                  filterItem['defaultMapValue'] = queryParams
+                  filterItem['mapValue'] = queryParams
                 } else if (filterItem.displayType === '1') {
                   // 1 时间类型
-                  filterItem.selectValue = queryParams[0]
-                  filterItem.defaultValue = queryParams[0]
+                  filterItem['selectValue'] = queryParams[0]
+                  filterItem['defaultValue'] = queryParams[0]
                 } else if (filterItem.displayType === '7') {
                   // 7 时间范围类型
-                  filterItem.selectValue = queryParams
-                  filterItem.defaultValue = queryParams
+                  if (QDItem.timeValue && Array.isArray(QDItem.timeValue)) {
+                    // 如果dimension.timeValue存在值且是数组 目前判断为是时间组件
+                    filterItem['selectValue'] = QDItem.timeValue
+                    filterItem['defaultValue'] = QDItem.timeValue
+                  } else {
+                    filterItem['selectValue'] = queryParams
+                    filterItem['defaultValue'] = queryParams
+                  }
                 } else if (filterItem.displayType === '8') {
                   // 8 文本搜索
-                  filterItem.conditionValueF = queryParams[0]
-                  filterItem.defaultConditionValueF = queryParams[0]
+                  filterItem['conditionValueF'] = queryParams[0]
+                  filterItem['defaultConditionValueF'] = queryParams[0]
                 }
               }
             })
@@ -1322,8 +1387,10 @@ export const dvMainStore = defineStore('dataVisualization', {
         selfWatermarkStatus: null,
         watermarkInfo: {},
         type: null,
-        mobileLayout: false
+        mobileLayout: false,
+        contentId: 0
       }
+      this.mainScrollTop = 0
     },
     setViewDataDetails(viewId, chartDataInfo) {
       this.canvasViewDataInfo[viewId] = chartDataInfo.data
@@ -1369,12 +1436,15 @@ export const dvMainStore = defineStore('dataVisualization', {
     getViewDetails(viewId) {
       return this.canvasViewInfo[viewId]
     },
-    updateDvInfoId(newId) {
+    updateDvInfoId(newId, contentId?) {
       if (this.dvInfo) {
         this.dvInfo.dataState = 'ready'
         this.dvInfo.optType = null
         if (newId) {
           this.dvInfo.id = newId
+        }
+        if (contentId) {
+          this.dvInfo.contentId = contentId
         }
       }
     },
@@ -1391,7 +1461,8 @@ export const dvMainStore = defineStore('dataVisualization', {
       }
     },
     createInit(dvType, resourceId?, pid?, watermarkInfo?, preName) {
-      const optName = dvType === 'dashboard' ? '新建仪表板' : '新建数据大屏'
+      const optName =
+        dvType === 'dashboard' ? t('visualization.new_dashboard') : t('visualization.new_screen')
       const name = preName ? preName : optName
       this.dvInfo = {
         dataState: 'prepare',
@@ -1403,7 +1474,8 @@ export const dvMainStore = defineStore('dataVisualization', {
         status: 1,
         selfWatermarkStatus: true,
         watermarkInfo: watermarkInfo,
-        mobileLayout: false
+        mobileLayout: false,
+        contentId: '0'
       }
       const canvasStyleDataNew =
         dvType === 'dashboard'
@@ -1445,7 +1517,8 @@ export const dvMainStore = defineStore('dataVisualization', {
         selfWatermarkStatus: null,
         watermarkInfo: {},
         type: null,
-        mobileLayout: false
+        mobileLayout: false,
+        contentId: '0'
       }
       this.canvasStyleData = { ...deepCopy(DEFAULT_CANVAS_STYLE_DATA_DARK), backgroundColor: null }
     },

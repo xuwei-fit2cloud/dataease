@@ -25,8 +25,10 @@ public class CacheConstant {
 
     public static class CommonCacheConstant {
         public static final String WORLD_MAP_CACHE = "de_v2_world_map";
+        public static final String CUSTOM_GEO_CACHE = "de_v2_custom_geo";
         public static final String RSA_CACHE = "de_v2_rsa";
         public static final String PER_MENU_ID_CACHE = "de_v2_per_menu_id";
+        public static final String GLOBAL_MFA_CACHE = "de_v2_global_mfa";
     }
 
     public static class LicenseCacheConstant {

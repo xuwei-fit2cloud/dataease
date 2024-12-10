@@ -5,9 +5,15 @@ import {
 import type { ScatterOptions, Scatter as G2Scatter } from '@antv/g2plot/esm/plots/scatter'
 import { flow, parseJson } from '../../../util'
 import { valueFormatter } from '../../../formatter'
-import { getPadding } from '../../common/common_antv'
+import {
+  configPlotTooltipEvent,
+  getPadding,
+  getTooltipContainer,
+  TOOLTIP_TPL
+} from '../../common/common_antv'
 import { useI18n } from '@/hooks/web/useI18n'
-import { isEmpty } from 'lodash-es'
+import { defaults, isEmpty } from 'lodash-es'
+import { DEFAULT_LEGEND_STYLE } from '@/views/chart/components/editor/util/chart'
 
 const { t } = useI18n()
 /**
@@ -102,6 +108,11 @@ export class Scatter extends G2PlotChartView<ScatterOptions, G2Scatter> {
       xField: 'field',
       yField: 'value',
       colorField: 'category',
+      meta: {
+        field: {
+          type: 'cat'
+        }
+      },
       appendPadding: getPadding(chart),
       interactions: [
         {
@@ -133,6 +144,7 @@ export class Scatter extends G2PlotChartView<ScatterOptions, G2Scatter> {
     const { Scatter: G2Scatter } = await import('@antv/g2plot/esm/plots/scatter')
     const newChart = new G2Scatter(container, options)
     newChart.on('point:click', action)
+    configPlotTooltipEvent(chart, newChart)
     return newChart
   }
 
@@ -233,7 +245,10 @@ export class Scatter extends G2PlotChartView<ScatterOptions, G2Scatter> {
           }
         })
         return result
-      }
+      },
+      container: getTooltipContainer(`tooltip-${chart.id}`),
+      itemTpl: TOOLTIP_TPL,
+      enterable: true
     }
     return {
       ...options,
@@ -246,9 +261,16 @@ export class Scatter extends G2PlotChartView<ScatterOptions, G2Scatter> {
     if (!optionTmp.legend) {
       return optionTmp
     }
+    const customStyle = parseJson(chart.customStyle)
+    let size
+    if (customStyle && customStyle.legend) {
+      size = defaults(JSON.parse(JSON.stringify(customStyle.legend)), DEFAULT_LEGEND_STYLE).size
+    } else {
+      size = DEFAULT_LEGEND_STYLE.size
+    }
     optionTmp.legend.marker.style = style => {
       return {
-        r: 4,
+        r: size,
         fill: style.fill
       }
     }

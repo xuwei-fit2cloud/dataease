@@ -39,6 +39,12 @@ const props = defineProps({
     type: Number,
     required: false,
     default: 1
+  },
+  // 仪表板字体
+  fontFamily: {
+    type: String,
+    required: false,
+    default: 'inherit'
   }
 })
 const { canvasStyleData, componentData, canvasViewInfo, canvasId, canvasActive, outerScale } =
@@ -58,7 +64,8 @@ const scaleMin = ref(100)
 
 const state = reactive({
   screenWidth: 1920,
-  screenHeight: 1080
+  screenHeight: 1080,
+  curScrollTop: 0
 })
 
 //仪表板矩阵信息适配，
@@ -97,7 +104,9 @@ const handleNewFromCanvasMain = newComponentInfo => {
     adaptCurThemeCommonStyle(component)
     nextTick(() => {
       cyGridster.value.addItemBox(component) //在适当的时候初始化布局组件
-      scrollTo(component.y)
+      nextTick(() => {
+        scrollTo(component.y)
+      })
     })
     snapshotStore.recordSnapshotCache('renderChart', component.id)
   }
@@ -131,6 +140,10 @@ const handleMouseDown = e => {
     dvMainStore.setInEditorStatus(true)
     dvMainStore.setCurComponent({ component: null, index: null })
   }
+}
+
+const canvasInitImmediately = () => {
+  cyGridster.value.canvasInit()
 }
 
 const canvasInit = (isFistLoad = true) => {
@@ -218,6 +231,7 @@ const moveOutFromTab = component => {
       componentData: componentData.value
     })
     addItemBox(component)
+    canvasInit()
   }, 500)
 }
 
@@ -261,6 +275,12 @@ const scrollTo = y => {
   })
 }
 
+const scrollCanvas = () => {
+  if (isMainCanvas(canvasId.value)) {
+    dvMainStore.mainScrollTop = canvasInner.value.scrollTop
+  }
+}
+
 watch(
   () => canvasActive.value,
   () => {
@@ -272,6 +292,8 @@ watch(
 
 defineExpose({
   addItemBox,
+  canvasInit,
+  canvasInitImmediately,
   getBaseMatrixSize
 })
 </script>
@@ -292,6 +314,7 @@ defineExpose({
       @drop="handleDrop"
       @dragover="handleDragOver"
       @mousedown="handleMouseDown"
+      @scroll="scrollCanvas"
     >
       <canvas-core
         ref="cyGridster"
@@ -304,6 +327,7 @@ defineExpose({
         :base-margin-top="baseMarginTop"
         :base-width="baseWidth"
         :base-height="baseHeight"
+        :font-family="fontFamily"
         @scrollCanvasToTop="scrollTo(1)"
       ></canvas-core>
     </div>

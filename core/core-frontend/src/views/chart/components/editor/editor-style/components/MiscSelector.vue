@@ -39,8 +39,8 @@ const emit = defineEmits(['onMiscChange'])
 watch(
   () => props.chart,
   () => {
-    initField()
     init()
+    initField()
   },
   { deep: true }
 )
@@ -110,7 +110,10 @@ const initField = () => {
   }
   initDynamicDefaultField()
 }
-
+const COUNT_DE_TYPE = [0, 1, 5]
+const getFieldSummaryByDeType = (deType: number) => {
+  return COUNT_DE_TYPE.includes(deType) || !deType ? 'count' : 'sum'
+}
 const initDynamicDefaultField = () => {
   const yAxisId = props.chart.yAxis?.[0]?.id
   if (yAxisId !== '-1' && state.quotaData.length) {
@@ -146,9 +149,11 @@ const initDynamicDefaultField = () => {
               state.liquidProcessedNoYAxis = false
               // 根据查找结果设置 liquidMaxField.id
               state.miscForm.liquidMaxField.id = yAxisExists ? yAxisId : state.quotaData[0]?.id
+              state.liquidMaxField = getQuotaField(state.miscForm.liquidMaxField.id)
               // 设置 summary 和 maxField
-              state.miscForm.liquidMaxField.summary = 'sum'
-              state.maxField = getQuotaField(state.miscForm.liquidMaxField.id)
+              state.miscForm.liquidMaxField.summary = getFieldSummaryByDeType(
+                state.liquidMaxField?.deType
+              )
               // 触发 changeMisc 事件
               if (yAxisExists) {
                 changeMisc('liquidMaxField', true)
@@ -172,9 +177,9 @@ const initDynamicDefaultField = () => {
               state.gaugeProcessedNoYAxis = false
               // 根据查找结果设置 gaugeMaxField.id
               state.miscForm.gaugeMaxField.id = yAxisExists ? yAxisId : state.quotaData[0]?.id
-              // 设置 summary 和 maxField
-              state.miscForm.gaugeMaxField.summary = 'sum'
               state.maxField = getQuotaField(state.miscForm.gaugeMaxField.id)
+              // 设置 summary 和 maxField
+              state.miscForm.gaugeMaxField.summary = getFieldSummaryByDeType(state.maxField?.deType)
               if (yAxisExists) {
                 // 触发 changeMisc 事件
                 changeMisc('gaugeMaxField', true)
@@ -233,13 +238,13 @@ const changeQuotaField = (type: string, resetSummary?: boolean) => {
         state.miscForm.liquidMaxField.id = props.chart.yAxis?.[0]?.id
       }
       if (!state.miscForm.liquidMaxField.summary) {
-        state.miscForm.liquidMaxField.summary = 'sum'
+        state.miscForm.liquidMaxField.summary = 'count'
       }
       if (resetSummary) {
-        state.miscForm.liquidMaxField.summary = 'sum'
+        state.miscForm.liquidMaxField.summary = 'count'
       }
       if (state.miscForm.liquidMaxField.id && state.miscForm.liquidMaxField.summary) {
-        state.maxField = getQuotaField(state.miscForm.liquidMaxField.id)
+        state.liquidMaxField = getQuotaField(state.miscForm.liquidMaxField.id)
         changeMisc('liquidMaxField', true)
       }
     } else {
@@ -252,10 +257,10 @@ const changeQuotaField = (type: string, resetSummary?: boolean) => {
           state.miscForm.gaugeMaxField.id = props.chart.yAxis?.[0]?.id
         }
         if (!state.miscForm.gaugeMaxField.summary) {
-          state.miscForm.gaugeMaxField.summary = 'sum'
+          state.miscForm.gaugeMaxField.summary = 'count'
         }
         if (resetSummary) {
-          state.miscForm.gaugeMaxField.summary = 'sum'
+          state.miscForm.gaugeMaxField.summary = 'count'
         }
         if (state.miscForm.gaugeMaxField.id && state.miscForm.gaugeMaxField.summary) {
           state.maxField = getQuotaField(state.miscForm.gaugeMaxField.id)
@@ -332,7 +337,7 @@ const changeMaxValidate = prop => {
       state.miscForm.liquidMax = cloneDeep(defaultMaxValue.liquidMax)
     }
   }
-  changeMisc(prop)
+  changeMisc(prop, true)
 }
 const addAxis = (form: AxisEditForm) => {
   const maxTypeKey = props.chart.type === 'liquid' ? 'liquidMaxType' : 'gaugeMaxType'
@@ -344,10 +349,16 @@ const addAxis = (form: AxisEditForm) => {
   } else {
     state.miscForm[maxTypeKey] = 'dynamic'
   }
+  if (props.chart.type === 'gauge') {
+    state.miscForm.gaugeMinType = 'fix'
+    state.miscForm.gaugeMin = 0
+    state.miscForm.gaugeMinField.id = ''
+    state.miscForm.gaugeMinField.summary = ''
+  }
 }
 onMounted(() => {
-  initField()
   init()
+  initField()
   useEmitt({ name: 'addAxis', callback: addAxis })
 })
 </script>
@@ -517,7 +528,7 @@ onMounted(() => {
           v-model="state.miscForm.gaugeMax"
           size="small"
           controls-position="right"
-          @blur="changeMaxValidate('gaugeMax')"
+          @change="changeMaxValidate('gaugeMax')"
         />
       </el-form-item>
       <el-row

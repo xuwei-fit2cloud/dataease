@@ -146,7 +146,7 @@ if (uid.value === '1') {
           <span>{{ link.label }}</span>
         </div>
 
-        <div class="uinfo-main-item de-container de-language">
+        <div class="uinfo-main-item de-container">
           <div class="about-parent" ref="divLanguageRef" v-click-outside="openLanguage">
             <span>语言</span>
             <el-icon class="el-icon-animate">
@@ -284,8 +284,5 @@ if (uid.value === '1') {
     display: none;
   }
   padding: var(--ed-popover-padding) 0 !important;
-}
-.de-language {
-  display: none !important;
 }
 </style>
