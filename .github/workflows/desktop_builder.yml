@@ -1,0 +1,57 @@
+name: Desktop Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'DataEase Branch'
+        required: true
+        default: "dev-v2"
+      tag:
+        description: 'tag'
+        required: true
+        default: "2.10.3"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout dataease repo
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.branch }}
+    - name: Cache local Maven repository
+      uses: actions/cache@v2
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    - name: Set up JDK 21
+      uses: actions/setup-java@v1
+      with:
+        java-version: 21
+        server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
+        settings-path: ${{ github.workspace }} # location for the settings.xml file
+    - name: Build with Maven
+      run: |
+        mvn clean install
+        cd core
+        mvn clean package -Pdesktop -U -Dmaven.test.skip=true
+        ls -alt core-backend/target
+    - name: prepare package files
+      run: |
+        pwd
+        ls -alt
+        # echo "复制桌面版jar文件"
+        # mv dataease/core/core-backend/target/CoreApplication.jar resources/app.jar
+    - name: Upload to oss
+      id: upload_to_oss
+      uses: tvrcgo/oss-action@master
+      with:
+        key-id: ${{ secrets.OSS_KEY_ID }}
+        key-secret: ${{ secrets.OSS_KEY_SECRET }}
+        region: oss-cn-hangzhou
+        bucket: xuwei-bucket
+        assets: |
+          core/core-backend/target/CoreApplication.jar:/wei/app.jar
