@@ -39,11 +39,12 @@ jobs:
         cd core
         mvn clean package -Pdesktop -U -Dmaven.test.skip=true
         ls -alt core-backend/target
-    - name: upload desktop package to OSS
+    - name: setup ossutil
       uses: yizhoumo/setup-ossutil@v2
       with:
         ossutil-version: '1.7.19'
         endpoint: ${{ secrets.OSS_ENDPOINT }}
         access-key-id: ${{ secrets.OSS_KEY_ID }}
         access-key-secret: ${{ secrets.OSS_KEY_SECRET }}
-    - run: ossutil cp -f core/core-backend/target/CoreApplication.jar oss://${{ secrets.OSS_BUCKET }}/wei/app-${{ github.event.inputs.tag }}.jar
+    - name: upload jar to OSS
+      run: ossutil cp -f core/core-backend/target/CoreApplication.jar oss://${{ secrets.OSS_BUCKET_PATH }}/app-${{ github.event.inputs.tag }}.jar
