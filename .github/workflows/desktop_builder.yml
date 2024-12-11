@@ -39,13 +39,11 @@ jobs:
         cd core
         mvn clean package -Pdesktop -U -Dmaven.test.skip=true
         ls -alt core-backend/target
-    - name: Upload to oss
-      id: upload_to_oss
-      uses: tvrcgo/oss-action@master
+    - name: upload desktop package to OSS
+      uses: yizhoumo/setup-ossutil@v2
       with:
-        key-id: ${{ secrets.OSS_KEY_ID }}
-        key-secret: ${{ secrets.OSS_KEY_SECRET }}
-        region: ${{ secrets.OSS_REGION }}
-        bucket: ${{ secrets.OSS_BUCKET }}
-        assets: |
-          core/core-backend/target/CoreApplication.jar:/wei/app-${{ github.event.inputs.tag }}.jar
+        ossutil-version: '1.7.19'
+        endpoint: ${{ secrets.OSS_ENDPOINT }}
+        access-key-id: ${{ secrets.OSS_KEY_ID }}
+        access-key-secret: ${{ secrets.OSS_KEY_SECRET }}
+    - run: ossutil cp -f core/core-backend/target/CoreApplication.jar oss://${{ secrets.OSS_BUCKET }}/wei/app-${{ github.event.inputs.tag }}.jar
