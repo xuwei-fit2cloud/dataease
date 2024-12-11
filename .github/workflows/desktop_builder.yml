@@ -10,7 +10,7 @@ on:
       tag:
         description: 'tag'
         required: true
-        default: "2.10.3"
+        default: "dev-v2"
 
 jobs:
   build:
@@ -21,7 +21,7 @@ jobs:
       with:
         ref: ${{ github.event.inputs.branch }}
     - name: Cache local Maven repository
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ~/.m2/repository
         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
@@ -39,19 +39,13 @@ jobs:
         cd core
         mvn clean package -Pdesktop -U -Dmaven.test.skip=true
         ls -alt core-backend/target
-    - name: prepare package files
-      run: |
-        pwd
-        ls -alt
-        # echo "复制桌面版jar文件"
-        # mv dataease/core/core-backend/target/CoreApplication.jar resources/app.jar
     - name: Upload to oss
       id: upload_to_oss
       uses: tvrcgo/oss-action@master
       with:
         key-id: ${{ secrets.OSS_KEY_ID }}
         key-secret: ${{ secrets.OSS_KEY_SECRET }}
-        region: oss-cn-hangzhou
-        bucket: xuwei-bucket
+        region: ${{ secrets.OSS_REGION }}
+        bucket: ${{ secrets.OSS_BUCKET }}
         assets: |
-          core/core-backend/target/CoreApplication.jar:/wei/app.jar
+          core/core-backend/target/CoreApplication.jar:/wei/app-${{ github.event.inputs.tag }}.jar
